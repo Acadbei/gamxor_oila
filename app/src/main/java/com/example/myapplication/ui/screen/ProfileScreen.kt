@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.model.CaregiverProfile
@@ -73,6 +74,7 @@ fun ProfileScreen(
     onSaveProfile: (CaregiverProfile) -> DemoActionResult,
     onAction: (String) -> Unit
 ) {
+    val isCompactScreen = LocalConfiguration.current.screenWidthDp < 430
     val profile = uiState.profile
 
     var fullName by rememberSaveable(profile.fullName) { mutableStateOf(profile.fullName) }
@@ -123,7 +125,7 @@ fun ProfileScreen(
                     )
                 )
             ),
-        contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 144.dp),
+        contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 118.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {
@@ -198,7 +200,7 @@ fun ProfileScreen(
                         QuickActionTile(
                             modifier = Modifier.weight(1f),
                             icon = Icons.Default.CameraAlt,
-                            label = "Avatar",
+                            label = "Rasm",
                             accent = GlowRose,
                             onClick = { avatarSeed = (avatarSeed + 1) % 5 }
                         )
@@ -212,7 +214,7 @@ fun ProfileScreen(
                         QuickActionTile(
                             modifier = Modifier.weight(1f),
                             icon = Icons.Default.NotificationsActive,
-                            label = "Inbox",
+                            label = "Bell",
                             accent = GlowSky,
                             onClick = { onAction("Bildirishnomalar tepada o'ng burchakda.") }
                         )
@@ -242,76 +244,135 @@ fun ProfileScreen(
                     modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = fullName,
-                            onValueChange = { fullName = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("To'liq ism") },
-                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large
-                        )
-                        OutlinedTextField(
-                            value = familyLabel,
-                            onValueChange = { familyLabel = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Oila nomi") },
-                            leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large
-                        )
-                    }
+                    if (isCompactScreen) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = fullName,
+                                onValueChange = { fullName = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("To'liq ism") },
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = familyLabel,
+                                onValueChange = { familyLabel = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Oila nomi") },
+                                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = phone,
+                                onValueChange = { phone = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Telefon") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Email") },
+                                leadingIcon = { Icon(Icons.Default.AlternateEmail, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = address,
+                                onValueChange = { address = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Manzil") },
+                                leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = emergencyContact,
+                                onValueChange = { emergencyContact = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("SOS kontakt") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = fullName,
+                                onValueChange = { fullName = it },
+                                modifier = Modifier.weight(1f),
+                                label = { Text("To'liq ism") },
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = familyLabel,
+                                onValueChange = { familyLabel = it },
+                                modifier = Modifier.weight(1f),
+                                label = { Text("Oila nomi") },
+                                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = phone,
-                            onValueChange = { phone = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Telefon") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large
-                        )
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Email") },
-                            leadingIcon = { Icon(Icons.Default.AlternateEmail, contentDescription = null) },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large
-                        )
-                    }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = phone,
+                                onValueChange = { phone = it },
+                                modifier = Modifier.weight(1f),
+                                label = { Text("Telefon") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = email,
+                                onValueChange = { email = it },
+                                modifier = Modifier.weight(1f),
+                                label = { Text("Email") },
+                                leadingIcon = { Icon(Icons.Default.AlternateEmail, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = address,
-                            onValueChange = { address = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Manzil") },
-                            leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large
-                        )
-                        OutlinedTextField(
-                            value = emergencyContact,
-                            onValueChange = { emergencyContact = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("SOS kontakt") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = address,
+                                onValueChange = { address = it },
+                                modifier = Modifier.weight(1f),
+                                label = { Text("Manzil") },
+                                leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = emergencyContact,
+                                onValueChange = { emergencyContact = it },
+                                modifier = Modifier.weight(1f),
+                                label = { Text("SOS kontakt") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
                     }
 
                     OutlinedTextField(

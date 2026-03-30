@@ -80,7 +80,7 @@ fun NotificationsScreen(
                     )
                 )
             ),
-        contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 144.dp),
+        contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 118.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {
@@ -150,7 +150,7 @@ fun NotificationsScreen(
                         QuickActionTile(
                             modifier = Modifier.weight(1f),
                             icon = Icons.Default.DoneAll,
-                            label = "Read all",
+                            label = "Read",
                             accent = MaterialTheme.colorScheme.primary,
                             onClick = {
                                 onMarkAllNotificationsRead()
@@ -167,7 +167,7 @@ fun NotificationsScreen(
                         QuickActionTile(
                             modifier = Modifier.weight(1f),
                             icon = Icons.Default.Shield,
-                            label = "Safety",
+                            label = "Alert",
                             accent = GlowRose,
                             onClick = { onAction("Safety alertlar shu sahifada yuqoridan ko'rinadi.") }
                         )

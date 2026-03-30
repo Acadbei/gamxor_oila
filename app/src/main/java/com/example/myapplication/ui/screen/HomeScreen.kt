@@ -48,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -93,6 +94,7 @@ fun HomeScreen(
     onSendInvitation: (String, String, String) -> DemoActionResult,
     onPrimaryAction: (String) -> Unit
 ) {
+    val isCompactScreen = LocalConfiguration.current.screenWidthDp < 430
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var activeFilter by rememberSaveable { mutableStateOf(MemberListFilter.ALL) }
     var inviteName by rememberSaveable { mutableStateOf("") }
@@ -144,7 +146,7 @@ fun HomeScreen(
                     )
                 )
             ),
-        contentPadding = PaddingValues(start = 20.dp, top = 10.dp, end = 20.dp, bottom = 144.dp),
+        contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 118.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {
@@ -355,30 +357,55 @@ fun HomeScreen(
                         shape = MaterialTheme.shapes.large
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = inviteName,
-                            onValueChange = { inviteName = it },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
-                            label = { Text("Ism") },
-                            placeholder = { Text("Madina") },
-                            shape = MaterialTheme.shapes.large
-                        )
-                        OutlinedTextField(
-                            value = inviteRelation,
-                            onValueChange = { inviteRelation = it },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
-                            label = { Text("Roli") },
-                            placeholder = { Text("Singil") },
-                            shape = MaterialTheme.shapes.large
-                        )
+                    if (isCompactScreen) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = inviteName,
+                                onValueChange = { inviteName = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                                label = { Text("Ism") },
+                                placeholder = { Text("Madina") },
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = inviteRelation,
+                                onValueChange = { inviteRelation = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
+                                label = { Text("Roli") },
+                                placeholder = { Text("Singil") },
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = inviteName,
+                                onValueChange = { inviteName = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                                label = { Text("Ism") },
+                                placeholder = { Text("Madina") },
+                                shape = MaterialTheme.shapes.large
+                            )
+                            OutlinedTextField(
+                                value = inviteRelation,
+                                onValueChange = { inviteRelation = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null) },
+                                label = { Text("Roli") },
+                                placeholder = { Text("Singil") },
+                                shape = MaterialTheme.shapes.large
+                            )
+                        }
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

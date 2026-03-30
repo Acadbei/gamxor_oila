@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
@@ -47,7 +49,6 @@ import com.example.myapplication.data.model.DemoUiState
 import com.example.myapplication.data.model.FamilyMember
 import com.example.myapplication.ui.component.InfoLine
 import com.example.myapplication.ui.component.InitialsAvatar
-import com.example.myapplication.ui.component.QuickActionTile
 import com.example.myapplication.ui.component.StatusPill
 import com.example.myapplication.ui.component.SymbolChip
 import com.example.myapplication.ui.theme.GlowRose
@@ -130,40 +131,43 @@ fun FamilyMapScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Card(
-                shape = RoundedCornerShape(30.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = Color.White.copy(alpha = 0.92f)
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
                             Text(
-                                text = "Live Map",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold
+                                text = "A'zolar",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Marker tanlang yoki chipdan o'ting",
+                                text = "Marker tanlang",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
 
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             SymbolChip(
                                 icon = Icons.Default.Map,
@@ -179,7 +183,7 @@ fun FamilyMapScreen(
                     }
 
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(end = 8.dp)
                     ) {
                         items(uiState.members, key = { it.id }) { member ->
@@ -195,15 +199,17 @@ fun FamilyMapScreen(
 
             selectedMember?.let { member ->
                 Card(
-                    modifier = Modifier.navigationBarsPadding(),
-                    shape = RoundedCornerShape(32.dp),
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(end = 104.dp),
+                    shape = RoundedCornerShape(26.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White.copy(alpha = 0.94f)
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -218,17 +224,19 @@ fun FamilyMapScreen(
                                 InitialsAvatar(
                                     initials = initials(member.name),
                                     seed = member.id,
-                                    size = 62.dp
+                                    size = 54.dp
                                 )
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
                                         text = member.name,
-                                        style = MaterialTheme.typography.headlineSmall,
+                                        style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.ExtraBold
                                     )
                                     Text(
                                         text = "${member.relation} • ${member.placeLabel}",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -247,38 +255,30 @@ fun FamilyMapScreen(
                                 accent = GlowRose
                             )
                             SymbolChip(
-                                icon = Icons.Default.Route,
-                                label = member.safeZone,
+                                icon = Icons.Default.AccessTime,
+                                label = member.lastUpdate,
                                 accent = GlowSky
                             )
                         }
 
                         InfoLine(Icons.Default.LocationOn, "Manzil", member.address)
                         InfoLine(Icons.Default.Security, "Safe zone", member.safeZone)
-                        InfoLine(Icons.Default.AccessTime, "Oxirgi signal", member.lastUpdate)
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            QuickActionTile(
-                                modifier = Modifier.weight(1f),
+                            MapActionButton(
                                 icon = Icons.Default.Phone,
-                                label = "Call",
                                 accent = MaterialTheme.colorScheme.primary,
                                 onClick = { onAction("${member.name} uchun demo qo'ng'iroq oynasi ochildi.") }
                             )
-                            QuickActionTile(
-                                modifier = Modifier.weight(1f),
+                            MapActionButton(
                                 icon = Icons.Default.Route,
-                                label = "Route",
                                 accent = GlowSky,
                                 onClick = { onAction("${member.name} uchun yo'nalish demosi tayyorlandi.") }
                             )
-                            QuickActionTile(
-                                modifier = Modifier.weight(1f),
+                            MapActionButton(
                                 icon = Icons.Default.MyLocation,
-                                label = "Center",
                                 accent = GlowRose,
                                 onClick = {
                                     mapView.controller.animateTo(GeoPoint(member.lat, member.lon))
@@ -294,6 +294,32 @@ fun FamilyMapScreen(
 }
 
 @Composable
+private fun MapActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = accent.copy(alpha = 0.14f)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .padding(9.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = accent
+            )
+        }
+    }
+}
+
+@Composable
 private fun MapMemberChip(
     member: FamilyMember,
     isSelected: Boolean,
@@ -301,7 +327,7 @@ private fun MapMemberChip(
 ) {
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         color = if (isSelected) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
         } else {
@@ -309,19 +335,19 @@ private fun MapMemberChip(
         }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             InitialsAvatar(
                 initials = initials(member.name),
                 seed = member.id,
-                size = 40.dp
+                size = 34.dp
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = member.name,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
                 )
                 Text(

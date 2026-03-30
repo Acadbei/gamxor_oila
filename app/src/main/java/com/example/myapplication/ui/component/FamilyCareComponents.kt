@@ -296,13 +296,13 @@ fun SectionTitle(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .padding(10.dp),
+                    .size(38.dp)
+                    .padding(9.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -359,13 +359,13 @@ fun InfoLine(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .padding(10.dp),
+                    .size(36.dp)
+                    .padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -524,23 +524,24 @@ fun QuickActionTile(
 ) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(18.dp),
         color = Color.White.copy(alpha = 0.88f),
         tonalElevation = 2.dp,
         shadowElevation = 0.dp
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 color = accent.copy(alpha = 0.14f)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .padding(10.dp),
+                        .size(34.dp)
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -553,7 +554,9 @@ fun QuickActionTile(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -585,21 +588,23 @@ fun SymbolChip(
         color = background
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(15.dp),
+                modifier = Modifier.size(14.dp),
                 tint = contentColor
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
-                color = contentColor
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

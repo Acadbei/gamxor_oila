@@ -2,6 +2,7 @@ package com.example.myapplication.ui.screen
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,13 +26,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -225,22 +222,33 @@ private fun FamilyCareShell(
                 )
             },
             floatingActionButton = {
-                ExtendedFloatingActionButton(
-                    onClick = { showSosConfirm = true },
-                    containerColor = Color(0xFFC84531),
-                    contentColor = Color.White,
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp)
+                Surface(
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(bottom = 10.dp)
+                        .clickable(onClick = { showSosConfirm = true }),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFFD83F2C),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 8.dp
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.WarningAmber,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = "SOS",
-                        modifier = Modifier.padding(start = 8.dp),
-                        fontWeight = FontWeight.ExtraBold
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WarningAmber,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.White
+                        )
+                        Text(
+                            text = "SOS",
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
             },
             bottomBar = {
@@ -248,23 +256,27 @@ private fun FamilyCareShell(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(horizontal = 18.dp, vertical = 10.dp)
+                        .padding(horizontal = 18.dp, vertical = 8.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(32.dp),
+                        shape = RoundedCornerShape(26.dp),
                         color = Color.White.copy(alpha = 0.94f),
                         tonalElevation = 2.dp,
                         shadowElevation = 8.dp
                     ) {
-                        NavigationBar(
-                            containerColor = Color.Transparent
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             navigationTabs.forEach { tab ->
-                                NavigationBarItem(
+                                CompactNavItem(
+                                    modifier = Modifier.weight(1f),
                                     selected = selectedTab == tab,
                                     onClick = { selectedTab = tab },
-                                    icon = { Icon(tab.icon, contentDescription = null) },
-                                    label = { Text(tab.label) }
+                                    icon = tab.icon,
+                                    label = tab.label
                                 )
                             }
                         }
@@ -423,10 +435,10 @@ private fun ShellTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 12.dp)
+                .padding(horizontal = 18.dp, vertical = 8.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(32.dp),
+                shape = RoundedCornerShape(24.dp),
                 color = Color.White.copy(alpha = 0.9f),
                 tonalElevation = 2.dp,
                 shadowElevation = 6.dp
@@ -434,7 +446,7 @@ private fun ShellTopBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -444,13 +456,13 @@ private fun ShellTopBar(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
+                            shape = RoundedCornerShape(14.dp),
                             color = accent
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .padding(10.dp),
+                                    .size(36.dp)
+                                    .padding(8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -463,7 +475,7 @@ private fun ShellTopBar(
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 text = title,
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
@@ -475,7 +487,7 @@ private fun ShellTopBar(
                     }
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SymbolChip(
@@ -507,6 +519,70 @@ private fun ShellTopBar(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CompactNavItem(
+    modifier: Modifier = Modifier,
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: ImageVector,
+    label: String
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+        } else {
+            Color.Transparent
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                } else {
+                    Color.Transparent
+                }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .padding(6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
+            Text(
+                text = label,
+                modifier = Modifier.padding(start = 6.dp),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
         }
     }
 }
