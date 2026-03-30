@@ -4,15 +4,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.SendToMobile
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -37,6 +44,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.model.DemoUiState
+import com.example.myapplication.ui.component.SymbolChip
+import com.example.myapplication.ui.theme.GlowRose
+import com.example.myapplication.ui.theme.GlowSand
+import com.example.myapplication.ui.theme.GlowSky
 
 @Composable
 fun DemoLoginScreen(
@@ -60,110 +71,191 @@ fun DemoLoginScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF7F3E8),
-                        Color(0xFFE3F0EA),
-                        Color(0xFFD6E6DF)
+                        Color(0xFFF8F4EA),
+                        Color(0xFFE7F3ED),
+                        Color(0xFFDCE9F6)
                     )
                 )
             )
             .padding(20.dp)
     ) {
-        Card(
+        Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.Center),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                .size(150.dp)
+                .align(Alignment.TopEnd),
+            shape = CircleShape,
+            color = Color.White.copy(alpha = 0.22f)
+        ) {}
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            Card(
+                shape = RoundedCornerShape(34.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Surface(
-                    modifier = Modifier.size(56.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(60.dp),
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.16f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
                             imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Family Care",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Text(
+                                text = "Live • SOS • Invite",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
+                            )
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SymbolChip(
+                            icon = Icons.Default.Security,
+                            label = "OTP",
+                            accent = GlowSand
+                        )
+                        SymbolChip(
+                            icon = Icons.Default.Bolt,
+                            label = "Quick",
+                            accent = GlowRose
+                        )
+                        SymbolChip(
+                            icon = Icons.AutoMirrored.Filled.SendToMobile,
+                            label = "Demo",
+                            accent = GlowSky
                         )
                     }
                 }
+            }
 
-                Text(
-                    text = "G'amxo'r oila demo",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Telefon orqali kirib, oilangiz holatini jonli dashboard ko'rinishida kuzatib ko'ring.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Telefon raqam") },
-                    supportingText = { Text("Demo uchun format erkin: 90 123 45 67") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    singleLine = true
-                )
-
-                if (uiState.otpRequested) {
-                    OutlinedTextField(
-                        value = code,
-                        onValueChange = { code = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("SMS kod") },
-                        supportingText = { Text("Demo kod: ${uiState.otpHint}") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
-                    )
-                }
-
-                uiState.loginError?.let { error ->
+            Card(
+                shape = RoundedCornerShape(34.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.94f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Kirish",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold
                     )
-                }
+                    Text(
+                        text = "Telefon orqali kirib, jonli demo oqimini ko'ring.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                if (uiState.isSendingCode || uiState.isVerifying) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Telefon") },
+                        placeholder = { Text("90 123 45 67") },
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        shape = RoundedCornerShape(22.dp)
+                    )
 
-                Button(
-                    onClick = {
-                        if (uiState.otpRequested) {
-                            onLogin(phone, code)
-                        } else {
-                            onRequestCode(phone)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !uiState.isSendingCode && !uiState.isVerifying
-                ) {
-                    Text(if (uiState.otpRequested) "Kirish" else "Kod yuborish")
-                }
+                    if (uiState.otpRequested) {
+                        OutlinedTextField(
+                            value = code,
+                            onValueChange = { code = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Kod") },
+                            placeholder = { Text(uiState.otpHint) },
+                            leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(22.dp)
+                        )
+                    }
 
-                OutlinedButton(
-                    onClick = onQuickDemoLogin,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Tez demo kirish")
-                }
+                    if (uiState.otpRequested) {
+                        SymbolChip(
+                            icon = Icons.Default.Security,
+                            label = "Demo kod: ${uiState.otpHint}",
+                            accent = MaterialTheme.colorScheme.primary
+                        )
+                    }
 
-                Text(
-                    text = "Bu demo rejim. Kod yuborish va verifikatsiya ilova ichida simulyatsiya qilinadi.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    uiState.loginError?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    if (uiState.isSendingCode || uiState.isVerifying) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (uiState.otpRequested) {
+                                onLogin(phone, code)
+                            } else {
+                                onRequestCode(phone)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !uiState.isSendingCode && !uiState.isVerifying
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.otpRequested) Icons.Default.Key else Icons.AutoMirrored.Filled.SendToMobile,
+                            contentDescription = null
+                        )
+                        SpacerWidth()
+                        Text(if (uiState.otpRequested) "Kirish" else "Kod olish")
+                    }
+
+                    OutlinedButton(
+                        onClick = onQuickDemoLogin,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Icon(Icons.Default.Bolt, contentDescription = null)
+                        SpacerWidth()
+                        Text("Tez demo")
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun SpacerWidth() {
+    Box(modifier = Modifier.width(8.dp))
 }

@@ -12,10 +12,42 @@ enum class FeedSeverity {
     WARNING
 }
 
+enum class InvitationStatus {
+    PENDING_ACCEPTANCE,
+    WAITING_INSTALL,
+    ACCEPTED
+}
+
+enum class NotificationCategory {
+    INVITE,
+    SAFETY,
+    SYSTEM
+}
+
 enum class SosContactState {
     CALLING,
     NOTIFIED
 }
+
+data class ProfilePermissions(
+    val locationEnabled: Boolean = true,
+    val microphoneEnabled: Boolean = false,
+    val notificationsEnabled: Boolean = true,
+    val preciseLocationEnabled: Boolean = true,
+    val backgroundRefreshEnabled: Boolean = true
+)
+
+data class CaregiverProfile(
+    val fullName: String = "Nodir Yusupov",
+    val phone: String = "+998 90 321 45 67",
+    val email: String = "nodir@familycare.demo",
+    val familyLabel: String = "Yusupovlar oilasi",
+    val address: String = "Yunusobod, 9-kvartal",
+    val emergencyContact: String = "+998 90 777 00 11",
+    val avatarSeed: Int = 0,
+    val bio: String = "Oilaviy monitoring, xavfsizlik va SOS boshqaruvi uchun mas'ulman.",
+    val permissions: ProfilePermissions = ProfilePermissions()
+)
 
 data class FamilyMember(
     val id: Int,
@@ -46,6 +78,27 @@ data class ActivityFeedItem(
     val severity: FeedSeverity
 )
 
+data class FamilyInvitation(
+    val id: Int,
+    val name: String,
+    val relation: String,
+    val phone: String,
+    val sentAtLabel: String,
+    val status: InvitationStatus,
+    val isPlatformUser: Boolean
+)
+
+data class AppNotification(
+    val id: Int,
+    val title: String,
+    val message: String,
+    val timeLabel: String,
+    val category: NotificationCategory,
+    val isRead: Boolean = false,
+    val inviteId: Int? = null,
+    val actionLabel: String? = null
+)
+
 data class SosContact(
     val memberId: Int,
     val name: String,
@@ -61,6 +114,11 @@ data class SosUiState(
     val contacts: List<SosContact> = emptyList()
 )
 
+data class DemoActionResult(
+    val success: Boolean,
+    val message: String
+)
+
 data class DemoUiState(
     val isLoading: Boolean = true,
     val isLoggedIn: Boolean = false,
@@ -73,7 +131,10 @@ data class DemoUiState(
     val caregiverName: String = "Nodir",
     val familyLabel: String = "Yusupovlar oilasi",
     val lastSyncLabel: String = "Hozirgina",
+    val profile: CaregiverProfile = CaregiverProfile(),
     val members: List<FamilyMember> = emptyList(),
+    val invitations: List<FamilyInvitation> = emptyList(),
+    val notifications: List<AppNotification> = emptyList(),
     val activityFeed: List<ActivityFeedItem> = emptyList(),
     val selectedMemberId: Int? = null,
     val nextCheckInLabel: String = "20:00 da umumiy check-in",

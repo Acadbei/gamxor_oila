@@ -17,13 +17,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Battery5Bar
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,14 +38,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalContext
 import com.example.myapplication.data.model.DemoUiState
 import com.example.myapplication.data.model.FamilyMember
 import com.example.myapplication.ui.component.InfoLine
+import com.example.myapplication.ui.component.InitialsAvatar
+import com.example.myapplication.ui.component.QuickActionTile
 import com.example.myapplication.ui.component.StatusPill
+import com.example.myapplication.ui.component.SymbolChip
+import com.example.myapplication.ui.theme.GlowRose
+import com.example.myapplication.ui.theme.GlowSand
+import com.example.myapplication.ui.theme.GlowSky
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -97,7 +110,7 @@ fun FamilyMapScreen(
 
     LaunchedEffect(selectedMember?.id) {
         markerMap.forEach { (memberId, marker) ->
-            marker.alpha = if (memberId == selectedMember?.id) 1f else 0.84f
+            marker.alpha = if (memberId == selectedMember?.id) 1f else 0.82f
         }
 
         selectedMember?.let { member ->
@@ -121,24 +134,49 @@ fun FamilyMapScreen(
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Card(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(30.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+                    containerColor = Color.White.copy(alpha = 0.92f)
                 )
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = "Jonli xarita",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Tanlangan a'zoni marker, chip yoki dashboard orqali markazga olib kelish mumkin.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Live Map",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "Marker tanlang yoki chipdan o'ting",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SymbolChip(
+                                icon = Icons.Default.Map,
+                                label = "${uiState.members.size} marker",
+                                accent = GlowSky
+                            )
+                            SymbolChip(
+                                icon = Icons.Default.Security,
+                                label = "${uiState.trustedPlacesCount} zona",
+                                accent = GlowSand
+                            )
+                        }
+                    }
 
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -158,55 +196,95 @@ fun FamilyMapScreen(
             selectedMember?.let { member ->
                 Card(
                     modifier = Modifier.navigationBarsPadding(),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(32.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
+                        containerColor = Color.White.copy(alpha = 0.94f)
                     )
                 ) {
                     Column(
                         modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(
-                                    text = member.name,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                InitialsAvatar(
+                                    initials = initials(member.name),
+                                    seed = member.id,
+                                    size = 62.dp
                                 )
-                                Text(
-                                    text = "${member.relation} • ${member.placeLabel}",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = member.name,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Text(
+                                        text = "${member.relation} • ${member.placeLabel}",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                             StatusPill(status = member.status)
                         }
 
-                        InfoLine("Manzil", member.address)
-                        InfoLine("Safe zone", member.safeZone)
-                        InfoLine("Oxirgi signal", member.lastUpdate)
-                        InfoLine("Batareya va puls", "${member.battery}% • ${member.heartRate} bpm")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SymbolChip(
+                                icon = Icons.Default.Battery5Bar,
+                                label = "${member.battery}%",
+                                accent = GlowSand
+                            )
+                            SymbolChip(
+                                icon = Icons.Default.Favorite,
+                                label = "${member.heartRate} bpm",
+                                accent = GlowRose
+                            )
+                            SymbolChip(
+                                icon = Icons.Default.Route,
+                                label = member.safeZone,
+                                accent = GlowSky
+                            )
+                        }
+
+                        InfoLine(Icons.Default.LocationOn, "Manzil", member.address)
+                        InfoLine(Icons.Default.Security, "Safe zone", member.safeZone)
+                        InfoLine(Icons.Default.AccessTime, "Oxirgi signal", member.lastUpdate)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Button(
-                                onClick = { onAction("${member.name} uchun qo'ng'iroq demo oynasi ochildi.") },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Qo'ng'iroq")
-                            }
-                            OutlinedButton(
-                                onClick = { onAction("${member.name} uchun yo'nalish demosi tayyorlandi.") },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Yo'nalish")
-                            }
+                            QuickActionTile(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Phone,
+                                label = "Call",
+                                accent = MaterialTheme.colorScheme.primary,
+                                onClick = { onAction("${member.name} uchun demo qo'ng'iroq oynasi ochildi.") }
+                            )
+                            QuickActionTile(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Route,
+                                label = "Route",
+                                accent = GlowSky,
+                                onClick = { onAction("${member.name} uchun yo'nalish demosi tayyorlandi.") }
+                            )
+                            QuickActionTile(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.MyLocation,
+                                label = "Center",
+                                accent = GlowRose,
+                                onClick = {
+                                    mapView.controller.animateTo(GeoPoint(member.lat, member.lon))
+                                    mapView.controller.setZoom(15.0)
+                                }
+                            )
                         }
                     }
                 }
@@ -221,46 +299,46 @@ private fun MapMemberChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val background = if (isSelected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
-    }
-
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        color = background
+        shape = RoundedCornerShape(22.dp),
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        } else {
+            Color.White.copy(alpha = 0.86f)
+        }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
+            InitialsAvatar(
+                initials = initials(member.name),
+                seed = member.id,
+                size = 40.dp
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = member.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
                 )
-            }
-
-            Column {
-                Text(text = member.name, fontWeight = FontWeight.SemiBold)
                 Text(
                     text = member.relation,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
+    }
+}
+
+private fun initials(fullName: String): String {
+    val parts = fullName.trim().split(" ").filter { it.isNotBlank() }
+    return when {
+        parts.isEmpty() -> "FC"
+        parts.size == 1 -> parts.first().take(2).uppercase()
+        else -> "${parts.first().first()}${parts.last().first()}".uppercase()
     }
 }
