@@ -1,11 +1,8 @@
 package com.example.myapplication.ui.screen
 
-import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
+import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,6 +72,7 @@ import com.example.myapplication.ui.component.initialsFromName
 import com.example.myapplication.ui.theme.GlowMint
 import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
+import java.io.File
 
 @Composable
 fun ProfileScreen(
@@ -136,11 +134,20 @@ fun ProfileScreen(
         onAction(result.message)
     }
 
+    fun copyAvatarAndPersist(sourceUri: Uri) {
+        val storedAvatarUri = storeAvatarLocally(context, sourceUri)
+        if (storedAvatarUri == null) {
+            onAction("Profil rasmini saqlab bo'lmadi.")
+            return
+        }
+        persistAvatar(storedAvatarUri)
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            persistAvatar(uri.toString())
+            copyAvatarAndPersist(uri)
         }
     }
 
@@ -148,13 +155,7 @@ fun ProfileScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            persistAvatar(uri.toString())
+            copyAvatarAndPersist(uri)
         }
     }
 
@@ -212,7 +213,7 @@ fun ProfileScreen(
                         }
                         SymbolChip(
                             icon = Icons.Default.VerifiedUser,
-                            label = if (uiState.isRegistered) "Ro'yxatdan o'tgan" else "Guest",
+                            label = if (uiState.isRegistered) "Ro'yxatdan o'tgan" else "Ro'yxatdan o'tmagan",
                             accent = if (uiState.isRegistered) GlowMint else GlowSand
                         )
                     }
@@ -246,7 +247,7 @@ fun ProfileScreen(
             SectionTitle(
                 icon = Icons.Default.Person,
                 title = "Shaxsiy ma'lumotlar",
-                subtitle = "Ko'rish va keyin tahrirlash"
+                subtitle = "Ko'rish va tahrirlash"
             )
         }
 
@@ -450,7 +451,7 @@ fun ProfileScreen(
                         ) {
                             Icon(Icons.Default.VerifiedUser, contentDescription = null)
                             Box(modifier = Modifier.width(8.dp))
-                            Text("Ro'yxatdan o'tishni yakunlash")
+                            Text("Ro'yxatdan o'tish")
                         }
                     }
 
@@ -497,6 +498,7 @@ fun ProfileScreen(
                         TextButton(
                             onClick = {
                                 showAvatarActions = false
+                                deleteStoredAvatar(context, avatarUri)
                                 persistAvatar("")
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -577,16 +579,40 @@ private fun ProfileImageAvatar(
 private fun loadAvatarBitmap(context: android.content.Context, avatarUri: String): Bitmap? {
     return runCatching {
         val uri = Uri.parse(avatarUri)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val source = ImageDecoder.createSource(context.contentResolver, uri)
-            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
-                decoder.isMutableRequired = false
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            BitmapFactory.decodeStream(inputStream)
         }
     }.getOrNull()
+}
+
+private fun storeAvatarLocally(
+    context: android.content.Context,
+    sourceUri: Uri
+): String? {
+    return runCatching {
+        val avatarFile = File(context.filesDir, "profile-avatar.jpg")
+        context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+            avatarFile.outputStream().use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        } ?: return null
+        Uri.fromFile(avatarFile).toString()
+    }.getOrNull()
+}
+
+private fun deleteStoredAvatar(
+    context: android.content.Context,
+    avatarUri: String
+) {
+    val fileUri = runCatching { Uri.parse(avatarUri) }.getOrNull() ?: return
+    if (fileUri.scheme != "file") return
+
+    val path = fileUri.path ?: return
+    if (!path.startsWith(context.filesDir.absolutePath)) return
+
+    runCatching {
+        File(path).takeIf { it.exists() }?.delete()
+    }
 }
 
 private fun splitFullName(fullName: String): Pair<String, String> {
@@ -600,21 +626,3 @@ private fun splitFullName(fullName: String): Pair<String, String> {
 
 private fun buildFullName(firstName: String, lastName: String): String =
     listOf(firstName.trim(), lastName.trim()).filter { it.isNotBlank() }.joinToString(" ")
-
-private fun normalizeUzPhone(input: String): String {
-    val digits = input.filter(Char::isDigit)
-    val localDigits = when {
-        digits.startsWith("998") -> digits.drop(3)
-        else -> digits
-    }.take(9)
-
-    val builder = StringBuilder("+998")
-    if (localDigits.isNotEmpty()) builder.append(' ')
-    localDigits.forEachIndexed { index, char ->
-        builder.append(char)
-        if (index == 1 || index == 4 || index == 6) {
-            if (index != localDigits.lastIndex) builder.append(' ')
-        }
-    }
-    return builder.toString()
-}

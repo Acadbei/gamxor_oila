@@ -41,7 +41,7 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = NightInk,
     surfaceVariant = Color(0xFF21434B),
     onSurfaceVariant = Color(0xFFBDD3D0),
-    error = Color(0xFFFFB6A6),
+    error = Color(0xFFFFB4AB),
     onError = NightGreen
 )
 

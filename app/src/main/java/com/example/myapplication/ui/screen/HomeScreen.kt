@@ -19,10 +19,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -31,10 +33,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,8 +47,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.myapplication.data.model.AppNotification
 import com.example.myapplication.data.model.DemoUiState
 import com.example.myapplication.data.model.FamilyMember
+import com.example.myapplication.data.model.NotificationCategory
 import com.example.myapplication.data.model.SosAlert
 import com.example.myapplication.ui.component.InitialsAvatar
 import com.example.myapplication.ui.component.InfoLine
@@ -64,12 +69,16 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     uiState: DemoUiState,
     onSelectMember: (Int) -> Unit,
-    onAction: (String) -> Unit
+    onCall: (String) -> Unit,
+    onDismissCrimeAlert: (Int) -> Unit
 ) {
     val household = remember(uiState.selfMember, uiState.members) {
         listOf(uiState.selfMember) + uiState.members
     }
     val totalDistance = remember(household) { household.sumOf { it.distanceKm } }
+    val crimeNotifications = remember(uiState.notifications) {
+        uiState.notifications.filter { it.category == NotificationCategory.CRIME }
+    }
     var expandedMemberId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     LazyColumn(
@@ -174,7 +183,7 @@ fun HomeScreen(
             items(uiState.activeSosAlerts, key = { "alert-${it.memberId}" }) { alert ->
                 SosAlertCard(
                     alert = alert,
-                    onCall = { onAction("${alert.name} ga qo'ng'iroq oynasi ochildi.") }
+                    onCall = { onCall(alert.phone) }
                 )
             }
         }
@@ -197,8 +206,25 @@ fun HomeScreen(
                     onSelectMember(member.id)
                     expandedMemberId = if (expandedMemberId == member.id) null else member.id
                 },
-                onCall = { onAction("${member.name} ga qo'ng'iroq oynasi ochildi.") }
+                onCall = { onCall(member.phone) }
             )
+        }
+
+        if (crimeNotifications.isNotEmpty()) {
+            item {
+                SectionTitle(
+                    icon = Icons.Default.Shield,
+                    title = "Hududiy ogohlantirishlar",
+                    subtitle = "Yaqin atrofdagi jinoyatchilik xabarlari"
+                )
+            }
+
+            items(crimeNotifications, key = { "crime-${it.id}" }) { notification ->
+                CrimeNotificationCard(
+                    notification = notification,
+                    onDismiss = { onDismissCrimeAlert(notification.id) }
+                )
+            }
         }
     }
 }
@@ -234,7 +260,15 @@ private fun OverviewStatCard(
                         .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, contentDescription = null, tint = accent)
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (accent == GlowRose) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        }
+                    )
                 }
             }
             Text(
@@ -247,6 +281,96 @@ private fun OverviewStatCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun CrimeNotificationCard(
+    notification: AppNotification,
+    onDismiss: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.97f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.16f))
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .padding(10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = notification.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = notification.timeLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                SymbolChip(
+                    icon = Icons.Default.WarningAmber,
+                    label = "Ogohlantirish",
+                    accent = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Text(
+                text = notification.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DeleteOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Box(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "O'chirish",
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
     }
 }

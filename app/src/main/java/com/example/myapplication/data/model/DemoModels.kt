@@ -21,6 +21,7 @@ enum class InvitationStatus {
 enum class NotificationCategory {
     INVITE,
     SAFETY,
+    CRIME,
     SYSTEM
 }
 

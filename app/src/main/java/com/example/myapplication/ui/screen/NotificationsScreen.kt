@@ -66,7 +66,9 @@ fun NotificationsScreen(
 ) {
     val unreadCount = uiState.notifications.count { !it.isRead }
     val pendingAcceptanceCount = uiState.invitations.count { it.status == InvitationStatus.PENDING_ACCEPTANCE }
-    val safetyCount = uiState.notifications.count { it.category == NotificationCategory.SAFETY }
+    val safetyCount = uiState.notifications.count {
+        it.category == NotificationCategory.SAFETY || it.category == NotificationCategory.CRIME
+    }
 
     LazyColumn(
         modifier = modifier
@@ -313,11 +315,13 @@ private fun NotificationCard(
     val accent = when (notification.category) {
         NotificationCategory.INVITE -> GlowSand
         NotificationCategory.SAFETY -> GlowRose
+        NotificationCategory.CRIME -> GlowRose
         NotificationCategory.SYSTEM -> GlowSky
     }
     val icon = when (notification.category) {
         NotificationCategory.INVITE -> Icons.Default.PersonAdd
         NotificationCategory.SAFETY -> Icons.Default.WarningAmber
+        NotificationCategory.CRIME -> Icons.Default.Shield
         NotificationCategory.SYSTEM -> Icons.Default.Info
     }
 

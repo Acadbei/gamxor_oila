@@ -1,7 +1,9 @@
 package com.example.myapplication.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.myapplication.data.local.LocalUserStore
 import com.example.myapplication.data.model.ActivityFeedItem
 import com.example.myapplication.data.model.AppNotification
 import com.example.myapplication.data.model.CaregiverProfile
@@ -24,9 +26,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class LocationViewModel : ViewModel() {
+class LocationViewModel(application: Application) : AndroidViewModel(application) {
 
     private val initialProfile = CaregiverProfile()
+    private val userStore = LocalUserStore(application)
 
     private val initialMembers = listOf(
         FamilyMember(
@@ -164,8 +167,8 @@ class LocationViewModel : ViewModel() {
         ActivityFeedItem(
             id = 1,
             memberId = 0,
-            title = "Ilova to'g'ridan-to'g'ri ochildi",
-            subtitle = "Login ekrani olib tashlandi, xarita sahifasi tayyor.",
+            title = "Ilova ishga tushdi",
+            subtitle = "Xarita va ro'yxatdan o'tish oqimi tayyor.",
             timeLabel = "Hozirgina",
             severity = FeedSeverity.POSITIVE
         ),
@@ -201,6 +204,20 @@ class LocationViewModel : ViewModel() {
             message = "Maktab hududidan tezkor yordam signali keldi.",
             timeLabel = "3 daqiqa oldin",
             category = NotificationCategory.SAFETY
+        ),
+        AppNotification(
+            id = 3,
+            title = "Yunusobodda kechki ogohlantirish",
+            message = "Mahalladagi ichki ko'chada shubhali shaxs haqida xabar kelib tushdi. Bolalarni yolg'iz yubormaslik tavsiya etiladi.",
+            timeLabel = "12 daqiqa oldin",
+            category = NotificationCategory.CRIME
+        ),
+        AppNotification(
+            id = 4,
+            title = "Olmazorda telefon o'g'irlash holati",
+            message = "Maktab yaqinida telefon tortib olish bo'yicha murojaat qayd etildi. Farzandlaringiz bilan aloqa vositalarini ehtiyot qilishni eslating.",
+            timeLabel = "28 daqiqa oldin",
+            category = NotificationCategory.CRIME
         )
     )
 
@@ -214,17 +231,33 @@ class LocationViewModel : ViewModel() {
     private fun loadDemo() {
         viewModelScope.launch {
             delay(500)
+            val restoredProfile = userStore.loadProfile(initialProfile)
+            val isRegistered = userStore.loadRegistrationState()
+            val bootNotifications = if (isRegistered) {
+                listOf(
+                    AppNotification(
+                        id = 1,
+                        title = "Profil faol",
+                        message = "Sizning profilingiz ro'yxatdan o'tgan va saqlab qo'yilgan.",
+                        timeLabel = "Hozirgina",
+                        category = NotificationCategory.SYSTEM
+                    ),
+                    *initialNotifications.filterNot { it.category == NotificationCategory.SYSTEM }.toTypedArray()
+                )
+            } else {
+                initialNotifications
+            }
             _uiState.value = DemoUiState(
                 isLoading = false,
                 isLoggedIn = true,
-                isRegistered = false,
-                caregiverName = displayName(initialProfile.fullName),
-                familyLabel = initialProfile.familyLabel,
-                profile = initialProfile,
-                selfMember = selfMemberFrom(initialProfile),
+                isRegistered = isRegistered,
+                caregiverName = displayName(restoredProfile.fullName),
+                familyLabel = restoredProfile.familyLabel,
+                profile = restoredProfile,
+                selfMember = selfMemberFrom(restoredProfile),
                 members = initialMembers,
                 invitations = emptyList(),
-                notifications = initialNotifications,
+                notifications = bootNotifications,
                 activityFeed = initialFeed,
                 selectedMemberId = 0,
                 activeSosAlerts = listOf(
@@ -241,76 +274,110 @@ class LocationViewModel : ViewModel() {
         }
     }
 
-    fun requestCode(phone: String) {
-        if (phone.filter(Char::isDigit).length < 9) {
-            _uiState.update { it.copy(loginError = "Telefon raqamni to'liq kiriting.") }
-            return
-        }
+    fun resetAuthState() {
         _uiState.update {
             it.copy(
-                otpRequested = true,
-                loginError = null,
-                otpHint = "2580"
+                otpRequested = false,
+                isSendingCode = false,
+                isVerifying = false,
+                loginError = null
             )
         }
     }
 
-    fun loginWithPhone(phone: String, code: String) {
-        authenticateWithPhone(phone, code)
+    fun requestCode(phone: String) {
+        if (canonicalPhone(phone).length != 12) {
+            _uiState.update { it.copy(loginError = "Telefon raqamni to'liq kiriting.") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isSendingCode = true,
+                    otpRequested = false,
+                    loginError = null
+                )
+            }
+            delay(700)
+            _uiState.update {
+                it.copy(
+                    isSendingCode = false,
+                    otpRequested = true,
+                    loginError = null,
+                    otpHint = "2580"
+                )
+            }
+        }
     }
 
-    fun registerWithPhone(phone: String, code: String) {
-        authenticateWithPhone(phone, code)
-    }
-
-    private fun authenticateWithPhone(phone: String, code: String) {
-        val normalizedPhone = phone.filter(Char::isDigit)
+    fun verifySmsCode(phone: String, code: String): DemoActionResult {
+        val normalizedPhone = canonicalPhone(phone)
         val normalizedCode = code.filter(Char::isDigit)
 
-        if (normalizedPhone.length < 9) {
-            _uiState.update { it.copy(loginError = "Telefon raqamni tekshiring.") }
-            return
+        val result = when {
+            normalizedPhone.length != 12 -> DemoActionResult(false, "Telefon raqamni tekshiring.")
+            normalizedCode.length < 4 -> DemoActionResult(false, "SMS kodni kiriting.")
+            normalizedCode == "2580" || normalizedCode == "123456" -> DemoActionResult(true, "Kod tasdiqlandi.")
+            else -> DemoActionResult(false, "Kod noto'g'ri. Demo uchun 2580 dan foydalaning.")
         }
 
-        if (normalizedCode.length < 4) {
-            _uiState.update { it.copy(loginError = "SMS kodni kiriting.") }
-            return
+        _uiState.update {
+            it.copy(
+                isVerifying = false,
+                loginError = if (result.success) null else result.message
+            )
         }
 
-        if (normalizedCode == "2580" || normalizedCode == "123456") {
-            completeRegistration()
-        } else {
-            _uiState.update {
-                it.copy(loginError = "Kod noto'g'ri. Demo uchun 2580 dan foydalaning.")
-            }
-        }
+        return result
     }
 
-    fun quickDemoLogin() {
-        completeRegistration()
-    }
+    fun completeRegistration(fullName: String, phone: String): DemoActionResult {
+        val state = _uiState.value
+        val trimmedName = fullName.trim()
+        val canonicalPhone = canonicalPhone(phone)
 
-    fun completeRegistration(): DemoActionResult {
-        var result = DemoActionResult(true, "Profil ro'yxatdan o'tgan holatga o'tdi.")
-        _uiState.update { state ->
-            if (state.isRegistered) {
-                result = DemoActionResult(false, "Profil allaqachon ro'yxatdan o'tgan.")
-                state
-            } else {
-                val notification = AppNotification(
-                    id = nextNotificationId(state),
-                    title = "Profil aktivlashtirildi",
-                    message = "Oilaviy kuzatuv uchun profil ro'yxatdan o'tdi.",
-                    timeLabel = "Hozirgina",
-                    category = NotificationCategory.SYSTEM
-                )
-                state.copy(
-                    isRegistered = true,
-                    lastSyncLabel = "Profil aktivlashtirildi",
-                    notifications = listOf(notification) + state.notifications.take(7)
-                )
-            }
+        val result = when {
+            trimmedName.isBlank() -> DemoActionResult(false, "Ismingizni kiriting.")
+            canonicalPhone.length != 12 -> DemoActionResult(false, "Telefon raqamni tekshiring.")
+            state.isRegistered -> DemoActionResult(false, "Profil allaqachon ro'yxatdan o'tgan.")
+            else -> DemoActionResult(true, "Ro'yxatdan o'tish yakunlandi.")
         }
+
+        if (!result.success) {
+            _uiState.update { it.copy(loginError = result.message) }
+            return result
+        }
+
+        val updatedProfile = state.profile.copy(
+            fullName = trimmedName,
+            phone = formatPhone(canonicalPhone)
+        )
+
+        _uiState.update { current ->
+            val notification = AppNotification(
+                id = nextNotificationId(current),
+                title = "Profil faollashtirildi",
+                message = "Telefon raqam va ism muvaffaqiyatli tasdiqlandi.",
+                timeLabel = "Hozirgina",
+                category = NotificationCategory.SYSTEM
+            )
+
+            current.copy(
+                isRegistered = true,
+                otpRequested = false,
+                isSendingCode = false,
+                isVerifying = false,
+                loginError = null,
+                caregiverName = displayName(updatedProfile.fullName),
+                lastSyncLabel = "Ro'yxatdan o'tildi",
+                profile = updatedProfile,
+                selfMember = selfMemberFrom(updatedProfile, current.selfMember),
+                notifications = listOf(notification) + current.notifications.take(7)
+            )
+        }
+
+        userStore.saveProfile(updatedProfile)
+        userStore.saveRegistrationState(true)
         return result
     }
 
@@ -419,6 +486,7 @@ class LocationViewModel : ViewModel() {
             )
         }
 
+        userStore.saveProfile(normalizedProfile)
         return DemoActionResult(true, "Profil ma'lumotlari saqlandi.")
     }
 
@@ -558,6 +626,21 @@ class LocationViewModel : ViewModel() {
         }
     }
 
+    fun dismissNotification(notificationId: Int): DemoActionResult {
+        val state = _uiState.value
+        val target = state.notifications.firstOrNull { it.id == notificationId }
+            ?: return DemoActionResult(false, "Bildirishnoma topilmadi.")
+
+        _uiState.update { current ->
+            current.copy(
+                notifications = current.notifications.filterNot { it.id == notificationId },
+                lastSyncLabel = "Bildirishnoma o'chirildi"
+            )
+        }
+
+        return DemoActionResult(true, "\"${target.title}\" o'chirildi.")
+    }
+
     fun triggerSos() {
         val currentState = _uiState.value
         if (currentState.sosState.isSending || currentState.members.isEmpty()) return
@@ -641,6 +724,7 @@ class LocationViewModel : ViewModel() {
                 lastSyncLabel = "Ro'yxatdan chiqildi"
             )
         }
+        userStore.saveRegistrationState(false)
     }
 
     private fun selfMemberFrom(profile: CaregiverProfile, previous: FamilyMember? = null): FamilyMember {

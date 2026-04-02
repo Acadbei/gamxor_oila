@@ -1,5 +1,8 @@
 package com.example.myapplication.ui.screen
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -76,20 +80,51 @@ fun FamilyCareApp(
     viewModel: LocationViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showRegistrationFlow by rememberSaveable { mutableStateOf(false) }
 
     if (uiState.isLoading) {
         DemoBootScreen()
     } else {
-        FamilyCareShell(
-            uiState = uiState,
-            onSelectMember = viewModel::selectMember,
-            onSignOut = viewModel::signOut,
-            onSaveProfile = viewModel::saveProfile,
-            onSendInvitation = viewModel::sendInvitation,
-            onRegister = viewModel::completeRegistration,
-            onTriggerSos = viewModel::triggerSos,
-            onDismissSos = viewModel::clearSosState
-        )
+        BackHandler(enabled = showRegistrationFlow) {
+            viewModel.resetAuthState()
+            showRegistrationFlow = false
+        }
+
+        Crossfade(targetState = showRegistrationFlow, label = "app-root") { registrationVisible ->
+            if (registrationVisible) {
+                DemoLoginScreen(
+                    uiState = uiState,
+                    onRequestCode = viewModel::requestCode,
+                    onVerifyCode = viewModel::verifySmsCode,
+                    onCompleteRegistration = { phone, fullName ->
+                        val result = viewModel.completeRegistration(fullName = fullName, phone = phone)
+                        if (result.success) {
+                            showRegistrationFlow = false
+                        }
+                        result
+                    },
+                    onBack = {
+                        viewModel.resetAuthState()
+                        showRegistrationFlow = false
+                    }
+                )
+            } else {
+                FamilyCareShell(
+                    uiState = uiState,
+                    onSelectMember = viewModel::selectMember,
+                    onSignOut = viewModel::signOut,
+                    onSaveProfile = viewModel::saveProfile,
+                    onSendInvitation = viewModel::sendInvitation,
+                    onDismissNotification = viewModel::dismissNotification,
+                    onStartRegistration = {
+                        viewModel.resetAuthState()
+                        showRegistrationFlow = true
+                    },
+                    onTriggerSos = viewModel::triggerSos,
+                    onDismissSos = viewModel::clearSosState
+                )
+            }
+        }
     }
 }
 
@@ -130,7 +165,7 @@ private fun DemoBootScreen() {
             }
 
             Text(
-                text = "Family Care",
+                text = "Oilaviy parvarish",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 fontWeight = FontWeight.ExtraBold
@@ -155,7 +190,8 @@ private fun FamilyCareShell(
     onSignOut: () -> Unit,
     onSaveProfile: (CaregiverProfile) -> DemoActionResult,
     onSendInvitation: (String, String, String) -> DemoActionResult,
-    onRegister: () -> DemoActionResult,
+    onDismissNotification: (Int) -> DemoActionResult,
+    onStartRegistration: () -> Unit,
     onTriggerSos: () -> Unit,
     onDismissSos: () -> Unit
 ) {
@@ -164,6 +200,7 @@ private fun FamilyCareShell(
     var showSosConfirm by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val showMessage: (String) -> Unit = { message ->
         scope.launch { snackbarHostState.showSnackbar(message) }
@@ -171,6 +208,12 @@ private fun FamilyCareShell(
 
     val handleResult: (DemoActionResult) -> Unit = { result ->
         showMessage(result.message)
+    }
+
+    val launchDialer: (String) -> Unit = { phone ->
+        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${dialablePhoneNumber(phone)}"))
+        runCatching { context.startActivity(dialIntent) }
+            .onFailure { showMessage("Telefon ilovasini ochib bo'lmadi.") }
     }
 
     LaunchedEffect(uiState.sosState.isActive, uiState.sosState.isSending, uiState.sosState.summary) {
@@ -200,13 +243,13 @@ private fun FamilyCareShell(
                 if (selectedTab == DemoTab.Map && !uiState.isRegistered) {
                     MapTopBar(
                         uiState = uiState,
-                        onRegister = { handleResult(onRegister()) }
+                        onRegister = onStartRegistration
                     )
                 } else if (selectedTab != DemoTab.Map) {
                     ShellTopBar(
                         selectedTab = selectedTab,
                         uiState = uiState,
-                        onRegister = { handleResult(onRegister()) }
+                        onRegister = onStartRegistration
                     )
                 }
             },
@@ -283,14 +326,16 @@ private fun FamilyCareShell(
                         modifier = Modifier.padding(padding),
                         uiState = uiState,
                         onSelectMember = onSelectMember,
-                        onAction = showMessage
+                        onCall = launchDialer,
+                        onDismissCrimeAlert = { notificationId ->
+                            handleResult(onDismissNotification(notificationId))
+                        }
                     )
 
                     DemoTab.Map -> FamilyMapScreen(
                         modifier = Modifier.padding(padding),
                         uiState = uiState,
-                        onSelectMember = onSelectMember,
-                        onAction = showMessage
+                        onSelectMember = onSelectMember
                     )
 
                     DemoTab.Profile -> ProfileScreen(
@@ -298,14 +343,11 @@ private fun FamilyCareShell(
                         uiState = uiState,
                         onSignOut = {
                             onSignOut()
-                            showMessage("Profil guest holatga o'tkazildi.")
+                            showMessage("Profil ro'yxatdan chiqarildi.")
                         },
                         onSaveProfile = onSaveProfile,
                         onSendInvitation = onSendInvitation,
-                        onRegister = {
-                            val result = onRegister()
-                            showMessage(result.message)
-                        },
+                        onRegister = onStartRegistration,
                         onAction = showMessage
                     )
                 }

@@ -46,6 +46,7 @@ import com.example.myapplication.ui.theme.GlowMint
 import com.example.myapplication.ui.theme.GlowRose
 import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
+import com.example.myapplication.ui.theme.Ink
 import com.example.myapplication.ui.theme.InfoInk
 import com.example.myapplication.ui.theme.SuccessInk
 import com.example.myapplication.ui.theme.WarningInk
@@ -427,10 +428,12 @@ fun NotificationCardFrame(
 }
 
 private fun readableAccentColor(accent: Color): Color {
-    return if (accent.luminance() > 0.70f) {
-        Color(0xFF214A63)
-    } else {
-        accent
+    return when (accent) {
+        GlowMint -> SuccessInk
+        GlowSky -> InfoInk
+        GlowSand -> WarningInk
+        GlowRose -> DangerInk
+        else -> if (accent.luminance() > 0.70f) Ink else accent
     }
 }
 
