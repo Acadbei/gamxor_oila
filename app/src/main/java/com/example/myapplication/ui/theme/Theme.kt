@@ -32,16 +32,16 @@ private val DarkColorScheme = darkColorScheme(
     primary = NightMeadow,
     onPrimary = NightGreen,
     secondary = NightHoney,
-    onSecondary = NightGreen,
+    onSecondary = NightInk,
     tertiary = Meadow,
     onTertiary = NightGreen,
     background = NightGreen,
     onBackground = NightInk,
     surface = NightSurface,
     onSurface = NightInk,
-    surfaceVariant = Color(0xFF25413C),
-    onSurfaceVariant = Color(0xFFB4C7C0),
-    error = Color(0xFFFFB59F),
+    surfaceVariant = Color(0xFF21434B),
+    onSurfaceVariant = Color(0xFFBDD3D0),
+    error = Color(0xFFFFB6A6),
     onError = NightGreen
 )
 

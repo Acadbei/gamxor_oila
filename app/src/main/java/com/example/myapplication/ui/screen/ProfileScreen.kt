@@ -1,6 +1,18 @@
 package com.example.myapplication.ui.screen
 
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,56 +24,55 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.filled.TextSnippet
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AlternateEmail
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.model.CaregiverProfile
 import com.example.myapplication.data.model.DemoActionResult
 import com.example.myapplication.data.model.DemoUiState
-import com.example.myapplication.data.model.ProfilePermissions
-import com.example.myapplication.ui.component.InfoLine
 import com.example.myapplication.ui.component.InitialsAvatar
-import com.example.myapplication.ui.component.ProfileSwitchRow
-import com.example.myapplication.ui.component.QuickActionTile
+import com.example.myapplication.ui.component.InfoLine
 import com.example.myapplication.ui.component.SectionTitle
 import com.example.myapplication.ui.component.SymbolChip
-import com.example.myapplication.ui.theme.GlowRose
+import com.example.myapplication.ui.component.initialsFromName
+import com.example.myapplication.ui.theme.GlowMint
 import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
 
@@ -69,49 +80,83 @@ import com.example.myapplication.ui.theme.GlowSky
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     uiState: DemoUiState,
-    onRefresh: () -> Unit,
     onSignOut: () -> Unit,
     onSaveProfile: (CaregiverProfile) -> DemoActionResult,
+    onSendInvitation: (String, String, String) -> DemoActionResult,
+    onRegister: () -> Unit,
     onAction: (String) -> Unit
 ) {
-    val isCompactScreen = LocalConfiguration.current.screenWidthDp < 430
+    val context = LocalContext.current
     val profile = uiState.profile
+    val splitName = rememberSaveable(profile.fullName) { splitFullName(profile.fullName) }
 
-    var fullName by rememberSaveable(profile.fullName) { mutableStateOf(profile.fullName) }
+    var firstName by rememberSaveable(profile.fullName) { mutableStateOf(splitName.first) }
+    var lastName by rememberSaveable(profile.fullName) { mutableStateOf(splitName.second) }
     var familyLabel by rememberSaveable(profile.familyLabel) { mutableStateOf(profile.familyLabel) }
-    var phone by rememberSaveable(profile.phone) { mutableStateOf(profile.phone) }
-    var email by rememberSaveable(profile.email) { mutableStateOf(profile.email) }
+    var phone by rememberSaveable(profile.phone) { mutableStateOf(normalizeUzPhone(profile.phone)) }
     var address by rememberSaveable(profile.address) { mutableStateOf(profile.address) }
-    var emergencyContact by rememberSaveable(profile.emergencyContact) { mutableStateOf(profile.emergencyContact) }
-    var bio by rememberSaveable(profile.bio) { mutableStateOf(profile.bio) }
     var avatarSeed by rememberSaveable(profile.avatarSeed) { mutableIntStateOf(profile.avatarSeed) }
-    var locationEnabled by rememberSaveable(profile.permissions.locationEnabled) {
-        mutableStateOf(profile.permissions.locationEnabled)
-    }
-    var microphoneEnabled by rememberSaveable(profile.permissions.microphoneEnabled) {
-        mutableStateOf(profile.permissions.microphoneEnabled)
-    }
-    var notificationsEnabled by rememberSaveable(profile.permissions.notificationsEnabled) {
-        mutableStateOf(profile.permissions.notificationsEnabled)
-    }
-    var preciseLocationEnabled by rememberSaveable(profile.permissions.preciseLocationEnabled) {
-        mutableStateOf(profile.permissions.preciseLocationEnabled)
-    }
-    var backgroundRefreshEnabled by rememberSaveable(profile.permissions.backgroundRefreshEnabled) {
-        mutableStateOf(profile.permissions.backgroundRefreshEnabled)
+    var avatarUri by rememberSaveable(profile.avatarUri) { mutableStateOf(profile.avatarUri) }
+    var isEditingPersonal by rememberSaveable { mutableStateOf(false) }
+    var showAvatarActions by rememberSaveable { mutableStateOf(false) }
+
+    var inviteName by rememberSaveable { mutableStateOf("") }
+    var inviteRelation by rememberSaveable { mutableStateOf("") }
+    var invitePhone by rememberSaveable { mutableStateOf("+998 ") }
+
+    fun resetDraft() {
+        val resetName = splitFullName(profile.fullName)
+        firstName = resetName.first
+        lastName = resetName.second
+        familyLabel = profile.familyLabel
+        phone = normalizeUzPhone(profile.phone)
+        address = profile.address
+        avatarSeed = profile.avatarSeed
+        avatarUri = profile.avatarUri
+        isEditingPersonal = false
     }
 
-    val completionScore = listOf(
-        fullName.isNotBlank(),
-        familyLabel.isNotBlank(),
-        phone.filter(Char::isDigit).length >= 9,
-        email.contains("@"),
-        address.isNotBlank(),
-        emergencyContact.filter(Char::isDigit).length >= 9,
-        locationEnabled,
-        notificationsEnabled
-    ).count { it }
-    val completionProgress = completionScore / 8f
+    fun buildDraftProfile(): CaregiverProfile {
+        return profile.copy(
+            fullName = buildFullName(firstName, lastName),
+            phone = phone,
+            familyLabel = familyLabel,
+            address = address,
+            avatarSeed = avatarSeed,
+            avatarUri = avatarUri
+        )
+    }
+
+    fun persistAvatar(newUri: String) {
+        avatarUri = newUri
+        val result = onSaveProfile(
+            if (isEditingPersonal) buildDraftProfile().copy(avatarUri = newUri)
+            else profile.copy(avatarUri = newUri, avatarSeed = avatarSeed)
+        )
+        onAction(result.message)
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            persistAvatar(uri.toString())
+        }
+    }
+
+    val fileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            persistAvatar(uri.toString())
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -121,7 +166,7 @@ fun ProfileScreen(
                     colors = listOf(
                         MaterialTheme.colorScheme.background,
                         Color.White,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
                     )
                 )
             ),
@@ -130,8 +175,8 @@ fun ProfileScreen(
     ) {
         item {
             Card(
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.94f))
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -147,14 +192,15 @@ fun ProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            InitialsAvatar(
-                                initials = initials(fullName),
+                            ProfileImageAvatar(
+                                initials = initialsFromName(buildFullName(firstName, lastName)),
                                 seed = avatarSeed,
-                                size = 72.dp
+                                avatarUri = avatarUri,
+                                onClick = { showAvatarActions = true }
                             )
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
-                                    text = fullName.ifBlank { "Family Coordinator" },
+                                    text = buildFullName(firstName, lastName).ifBlank { "Profil" },
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.ExtraBold
                                 )
@@ -162,67 +208,36 @@ fun ProfileScreen(
                                     text = familyLabel.ifBlank { uiState.familyLabel },
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    SymbolChip(
-                                        icon = Icons.Default.Group,
-                                        label = "${uiState.members.size} a'zo",
-                                        accent = GlowSky
-                                    )
-                                    SymbolChip(
-                                        icon = Icons.Default.Shield,
-                                        label = "${uiState.trustedPlacesCount} zona",
-                                        accent = GlowSand
-                                    )
-                                }
                             }
                         }
-
-                        Box(contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(
-                                progress = { completionProgress },
-                                modifier = Modifier.size(58.dp),
-                                strokeWidth = 6.dp,
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            Text(
-                                text = "${(completionProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        QuickActionTile(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Default.CameraAlt,
-                            label = "Rasm",
-                            accent = GlowRose,
-                            onClick = { avatarSeed = (avatarSeed + 1) % 5 }
-                        )
-                        QuickActionTile(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Default.Sync,
-                            label = if (uiState.isRefreshing) "Sync..." else "Sync",
-                            accent = MaterialTheme.colorScheme.primary,
-                            onClick = onRefresh
-                        )
-                        QuickActionTile(
-                            modifier = Modifier.weight(1f),
-                            icon = Icons.Default.NotificationsActive,
-                            label = "Bell",
-                            accent = GlowSky,
-                            onClick = { onAction("Bildirishnomalar tepada o'ng burchakda.") }
+                        SymbolChip(
+                            icon = Icons.Default.VerifiedUser,
+                            label = if (uiState.isRegistered) "Ro'yxatdan o'tgan" else "Guest",
+                            accent = if (uiState.isRegistered) GlowMint else GlowSand
                         )
                     }
 
-                    InfoLine(Icons.Default.Group, "Monitoring", uiState.familyLabel)
-                    InfoLine(Icons.Default.LocationOn, "Bazaviy manzil", address)
-                    InfoLine(Icons.Default.Schedule, "Keyingi check-in", uiState.nextCheckInLabel)
+                    InfoLine(Icons.Default.Phone, "Telefon", phone)
+                    InfoLine(Icons.Default.Home, "Manzil", address.ifBlank { "Manzil kiritilmagan" })
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SymbolChip(
+                            icon = Icons.Default.Group,
+                            label = "${uiState.members.size} a'zo ulangan",
+                            accent = GlowSky
+                        )
+                        SymbolChip(
+                            icon = Icons.Default.LocationOn,
+                            label = uiState.lastSyncLabel,
+                            accent = GlowSand
+                        )
+                    }
+
+                    Text(
+                        text = "Profil rasmini boshqarish uchun rasm ustiga bosing",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -230,278 +245,213 @@ fun ProfileScreen(
         item {
             SectionTitle(
                 icon = Icons.Default.Person,
-                title = "Identity",
-                subtitle = "Asosiy profil"
+                title = "Shaxsiy ma'lumotlar",
+                subtitle = "Ko'rish va keyin tahrirlash"
             )
         }
 
         item {
             Card(
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.94f))
+                shape = RoundedCornerShape(30.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    if (isCompactScreen) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isEditingPersonal) "Tahrirlash rejimi" else "Shaxsiy ma'lumotlar",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+
+                        TextButton(
+                            onClick = {
+                                if (isEditingPersonal) {
+                                    resetDraft()
+                                } else {
+                                    isEditingPersonal = true
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (isEditingPersonal) Icons.Default.DeleteOutline else Icons.Default.Edit,
+                                contentDescription = null
+                            )
+                            Box(modifier = Modifier.width(8.dp))
+                            Text(if (isEditingPersonal) "Bekor qilish" else "Tahrirlash")
+                        }
+                    }
+
+                    if (isEditingPersonal) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
                             OutlinedTextField(
-                                value = fullName,
-                                onValueChange = { fullName = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("To'liq ism") },
+                                value = firstName,
+                                onValueChange = { firstName = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
                                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
+                                label = { Text("Ism") }
                             )
                             OutlinedTextField(
-                                value = familyLabel,
-                                onValueChange = { familyLabel = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Oila nomi") },
-                                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                                value = lastName,
+                                onValueChange = { lastName = it },
+                                modifier = Modifier.weight(1f),
                                 singleLine = true,
-                                shape = MaterialTheme.shapes.large
+                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                                label = { Text("Familiya") }
                             )
-                            OutlinedTextField(
-                                value = phone,
-                                onValueChange = { phone = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Telefon") },
-                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                            OutlinedTextField(
-                                value = email,
-                                onValueChange = { email = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Email") },
-                                leadingIcon = { Icon(Icons.Default.AlternateEmail, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                            OutlinedTextField(
-                                value = address,
-                                onValueChange = { address = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Manzil") },
-                                leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                            OutlinedTextField(
-                                value = emergencyContact,
-                                onValueChange = { emergencyContact = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("SOS kontakt") },
-                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
+                        }
+
+                        OutlinedTextField(
+                            value = phone,
+                            onValueChange = { phone = normalizeUzPhone(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                            label = { Text("Telefon raqami") }
+                        )
+
+                        OutlinedTextField(
+                            value = address,
+                            onValueChange = { address = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                            label = { Text("Yashash manzili") }
+                        )
+
+                        OutlinedTextField(
+                            value = familyLabel,
+                            onValueChange = { familyLabel = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                            label = { Text("Oila nomi") }
+                        )
+
+                        Button(
+                            onClick = {
+                                val result = onSaveProfile(buildDraftProfile())
+                                onAction(result.message)
+                                if (result.success) {
+                                    isEditingPersonal = false
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null)
+                            Box(modifier = Modifier.width(8.dp))
+                            Text("Saqlash")
                         }
                     } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = fullName,
-                                onValueChange = { fullName = it },
-                                modifier = Modifier.weight(1f),
-                                label = { Text("To'liq ism") },
-                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                            OutlinedTextField(
-                                value = familyLabel,
-                                onValueChange = { familyLabel = it },
-                                modifier = Modifier.weight(1f),
-                                label = { Text("Oila nomi") },
-                                leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = phone,
-                                onValueChange = { phone = it },
-                                modifier = Modifier.weight(1f),
-                                label = { Text("Telefon") },
-                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                            OutlinedTextField(
-                                value = email,
-                                onValueChange = { email = it },
-                                modifier = Modifier.weight(1f),
-                                label = { Text("Email") },
-                                leadingIcon = { Icon(Icons.Default.AlternateEmail, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = address,
-                                onValueChange = { address = it },
-                                modifier = Modifier.weight(1f),
-                                label = { Text("Manzil") },
-                                leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                            OutlinedTextField(
-                                value = emergencyContact,
-                                onValueChange = { emergencyContact = it },
-                                modifier = Modifier.weight(1f),
-                                label = { Text("SOS kontakt") },
-                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large
-                            )
-                        }
+                        InfoLine(Icons.Default.Person, "Ism familiya", buildFullName(firstName, lastName))
+                        InfoLine(Icons.Default.Phone, "Telefon", phone)
+                        InfoLine(Icons.Default.Home, "Manzil", address.ifBlank { "Kiritilmagan" })
+                        InfoLine(Icons.Default.Group, "Oila nomi", familyLabel.ifBlank { "Kiritilmagan" })
                     }
-
-                    OutlinedTextField(
-                        value = bio,
-                        onValueChange = { bio = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Bio") },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.TextSnippet, contentDescription = null) },
-                        minLines = 3,
-                        shape = MaterialTheme.shapes.large
-                    )
                 }
             }
         }
 
         item {
             SectionTitle(
-                icon = Icons.Default.Shield,
-                title = "Access",
-                subtitle = "Ruxsat va monitoring"
+                icon = Icons.Default.Add,
+                title = "Oila a'zosini qo'shish",
+                subtitle = "Telefon raqami orqali taklif yuborish"
             )
         }
 
         item {
             Card(
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.94f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    ProfileSwitchRow(
-                        icon = Icons.Default.LocationOn,
-                        title = "Lokatsiya",
-                        subtitle = "Jonli xarita va safe-zone",
-                        checked = locationEnabled,
-                        onCheckedChange = { locationEnabled = it }
-                    )
-                    ProfileSwitchRow(
-                        icon = Icons.Default.CheckCircle,
-                        title = "Aniq nuqta",
-                        subtitle = "Precision GPS",
-                        checked = preciseLocationEnabled,
-                        onCheckedChange = { preciseLocationEnabled = it }
-                    )
-                    ProfileSwitchRow(
-                        icon = Icons.Default.Mic,
-                        title = "Audio",
-                        subtitle = "SOS va check-in",
-                        checked = microphoneEnabled,
-                        onCheckedChange = { microphoneEnabled = it }
-                    )
-                    ProfileSwitchRow(
-                        icon = Icons.Default.NotificationsActive,
-                        title = "Push",
-                        subtitle = "Invite va alert",
-                        checked = notificationsEnabled,
-                        onCheckedChange = { notificationsEnabled = it }
-                    )
-                    ProfileSwitchRow(
-                        icon = Icons.Default.Sync,
-                        title = "Fon sync",
-                        subtitle = "Ilova yopiq bo'lsa ham",
-                        checked = backgroundRefreshEnabled,
-                        onCheckedChange = { backgroundRefreshEnabled = it }
-                    )
-                }
-            }
-        }
-
-        item {
-            SectionTitle(
-                icon = Icons.Default.Save,
-                title = "Actions",
-                subtitle = "Saqlash va hisob"
-            )
-        }
-
-        item {
-            Card(
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.94f))
+                shape = RoundedCornerShape(30.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SymbolChip(
-                            icon = Icons.Default.CheckCircle,
-                            label = "Ready ${(completionProgress * 100).toInt()}%",
-                            accent = GlowSky
-                        )
-                        SymbolChip(
-                            icon = Icons.Default.NotificationsActive,
-                            label = if (notificationsEnabled) "Push on" else "Push off",
-                            accent = if (notificationsEnabled) GlowSand else GlowRose
-                        )
-                    }
+                    OutlinedTextField(
+                        value = inviteName,
+                        onValueChange = { inviteName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        label = { Text("Ismi") }
+                    )
+
+                    OutlinedTextField(
+                        value = inviteRelation,
+                        onValueChange = { inviteRelation = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                        label = { Text("Qarindoshligi") }
+                    )
+
+                    OutlinedTextField(
+                        value = invitePhone,
+                        onValueChange = { invitePhone = normalizeUzPhone(it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                        label = { Text("Telefon") }
+                    )
 
                     Button(
                         onClick = {
-                            val result = onSaveProfile(
-                                CaregiverProfile(
-                                    fullName = fullName,
-                                    phone = phone,
-                                    email = email,
-                                    familyLabel = familyLabel,
-                                    address = address,
-                                    emergencyContact = emergencyContact,
-                                    avatarSeed = avatarSeed,
-                                    bio = bio,
-                                    permissions = ProfilePermissions(
-                                        locationEnabled = locationEnabled,
-                                        microphoneEnabled = microphoneEnabled,
-                                        notificationsEnabled = notificationsEnabled,
-                                        preciseLocationEnabled = preciseLocationEnabled,
-                                        backgroundRefreshEnabled = backgroundRefreshEnabled
-                                    )
-                                )
-                            )
+                            val result = onSendInvitation(inviteName, inviteRelation, invitePhone)
                             onAction(result.message)
+                            if (result.success) {
+                                inviteName = ""
+                                inviteRelation = ""
+                                invitePhone = "+998 "
+                            }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.Save, contentDescription = null)
+                        Icon(Icons.Default.Add, contentDescription = null)
                         Box(modifier = Modifier.width(8.dp))
-                        Text("Profilni saqlash")
+                        Text("Oila a'zosini qo'shish")
+                    }
+                }
+            }
+        }
+
+        item {
+            SectionTitle(
+                icon = Icons.Default.VerifiedUser,
+                title = "Amallar",
+                subtitle = "Ro'yxatdan o'tish va chiqish"
+            )
+        }
+
+        item {
+            Card(
+                shape = RoundedCornerShape(30.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (!uiState.isRegistered) {
+                        Button(
+                            onClick = onRegister,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null)
+                            Box(modifier = Modifier.width(8.dp))
+                            Text("Ro'yxatdan o'tishni yakunlash")
+                        }
                     }
 
                     TextButton(
@@ -510,19 +460,161 @@ fun ProfileScreen(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                         Box(modifier = Modifier.width(8.dp))
-                        Text("Demo hisobdan chiqish")
+                        Text("Hisobdan chiqish")
                     }
                 }
             }
         }
     }
+
+    if (showAvatarActions) {
+        AlertDialog(
+            onDismissRequest = { showAvatarActions = false },
+            title = { Text("Profil rasmi") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showAvatarActions = false
+                            galleryLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Galereyadan tanlash")
+                    }
+                    TextButton(
+                        onClick = {
+                            showAvatarActions = false
+                            fileLauncher.launch(arrayOf("image/*"))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Fayldan tanlash")
+                    }
+                    if (avatarUri.isNotBlank()) {
+                        TextButton(
+                            onClick = {
+                                showAvatarActions = false
+                                persistAvatar("")
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Rasmni o'chirish")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAvatarActions = false }) {
+                    Text("Yopish")
+                }
+            }
+        )
+    }
 }
 
-private fun initials(fullName: String): String {
+@Composable
+private fun ProfileImageAvatar(
+    initials: String,
+    seed: Int,
+    avatarUri: String,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val avatarBitmap = remember(avatarUri) {
+        avatarUri.takeIf { it.isNotBlank() }?.let { uri ->
+            loadAvatarBitmap(context, uri)
+        }
+    }
+
+    Box(
+        modifier = Modifier.size(78.dp),
+        contentAlignment = Alignment.BottomEnd
+    ) {
+        if (avatarBitmap != null) {
+            Image(
+                bitmap = avatarBitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(74.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
+                    .clickable(onClick = onClick),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            InitialsAvatar(
+                initials = initials,
+                seed = seed,
+                modifier = Modifier.clickable(onClick = onClick),
+                size = 74.dp
+            )
+        }
+
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun loadAvatarBitmap(context: android.content.Context, avatarUri: String): Bitmap? {
+    return runCatching {
+        val uri = Uri.parse(avatarUri)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                decoder.isMutableRequired = false
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+        }
+    }.getOrNull()
+}
+
+private fun splitFullName(fullName: String): Pair<String, String> {
     val parts = fullName.trim().split(" ").filter { it.isNotBlank() }
     return when {
-        parts.isEmpty() -> "FC"
-        parts.size == 1 -> parts.first().take(2).uppercase()
-        else -> "${parts.first().first()}${parts.last().first()}".uppercase()
+        parts.isEmpty() -> "" to ""
+        parts.size == 1 -> parts.first() to ""
+        else -> parts.first() to parts.drop(1).joinToString(" ")
     }
+}
+
+private fun buildFullName(firstName: String, lastName: String): String =
+    listOf(firstName.trim(), lastName.trim()).filter { it.isNotBlank() }.joinToString(" ")
+
+private fun normalizeUzPhone(input: String): String {
+    val digits = input.filter(Char::isDigit)
+    val localDigits = when {
+        digits.startsWith("998") -> digits.drop(3)
+        else -> digits
+    }.take(9)
+
+    val builder = StringBuilder("+998")
+    if (localDigits.isNotEmpty()) builder.append(' ')
+    localDigits.forEachIndexed { index, char ->
+        builder.append(char)
+        if (index == 1 || index == 4 || index == 6) {
+            if (index != localDigits.lastIndex) builder.append(' ')
+        }
+    }
+    return builder.toString()
 }

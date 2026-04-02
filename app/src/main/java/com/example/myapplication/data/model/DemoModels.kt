@@ -45,6 +45,7 @@ data class CaregiverProfile(
     val address: String = "Yunusobod, 9-kvartal",
     val emergencyContact: String = "+998 90 777 00 11",
     val avatarSeed: Int = 0,
+    val avatarUri: String = "",
     val bio: String = "Oilaviy monitoring, xavfsizlik va SOS boshqaruvi uchun mas'ulman.",
     val permissions: ProfilePermissions = ProfilePermissions()
 )
@@ -66,7 +67,10 @@ data class FamilyMember(
     val note: String,
     val safeZone: String,
     val phone: String,
-    val schedule: String
+    val schedule: String,
+    val avatarSeed: Int = 0,
+    val distanceKm: Double = 0.0,
+    val isCurrentUser: Boolean = false
 )
 
 data class ActivityFeedItem(
@@ -106,6 +110,15 @@ data class SosContact(
     val state: SosContactState
 )
 
+data class SosAlert(
+    val memberId: Int,
+    val name: String,
+    val relation: String,
+    val phone: String,
+    val address: String,
+    val lastUpdate: String
+)
+
 data class SosUiState(
     val isActive: Boolean = false,
     val isSending: Boolean = false,
@@ -122,6 +135,7 @@ data class DemoActionResult(
 data class DemoUiState(
     val isLoading: Boolean = true,
     val isLoggedIn: Boolean = false,
+    val isRegistered: Boolean = false,
     val isSendingCode: Boolean = false,
     val isVerifying: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -132,6 +146,7 @@ data class DemoUiState(
     val familyLabel: String = "Yusupovlar oilasi",
     val lastSyncLabel: String = "Hozirgina",
     val profile: CaregiverProfile = CaregiverProfile(),
+    val selfMember: FamilyMember = defaultSelfMember(),
     val members: List<FamilyMember> = emptyList(),
     val invitations: List<FamilyInvitation> = emptyList(),
     val notifications: List<AppNotification> = emptyList(),
@@ -139,5 +154,29 @@ data class DemoUiState(
     val selectedMemberId: Int? = null,
     val nextCheckInLabel: String = "20:00 da umumiy check-in",
     val trustedPlacesCount: Int = 3,
+    val activeSosAlerts: List<SosAlert> = emptyList(),
     val sosState: SosUiState = SosUiState()
+)
+
+private fun defaultSelfMember() = FamilyMember(
+    id = 0,
+    name = "Nodir Yusupov",
+    relation = "Men",
+    age = 31,
+    lat = 41.3111,
+    lon = 69.2797,
+    address = "Yunusobod, 9-kvartal",
+    placeLabel = "Uy",
+    battery = 92,
+    steps = 4680,
+    heartRate = 76,
+    lastUpdate = "Hozirgina",
+    status = MemberStatus.SAFE,
+    note = "Asosiy qurilma faol holatda.",
+    safeZone = "Uy va ish yo'nalishi",
+    phone = "+998 90 321 45 67",
+    schedule = "20:00 oilaviy check-in",
+    avatarSeed = 0,
+    distanceKm = 3.6,
+    isCurrentUser = true
 )

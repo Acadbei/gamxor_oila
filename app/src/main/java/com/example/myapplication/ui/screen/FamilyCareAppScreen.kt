@@ -19,15 +19,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -57,6 +54,7 @@ import com.example.myapplication.data.model.DemoActionResult
 import com.example.myapplication.data.model.DemoUiState
 import com.example.myapplication.data.model.SosContactState
 import com.example.myapplication.ui.component.SymbolChip
+import com.example.myapplication.ui.theme.GlowMint
 import com.example.myapplication.ui.theme.GlowRose
 import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
@@ -70,7 +68,6 @@ private enum class DemoTab(
 ) {
     Home("Uy", Icons.Default.Home),
     Map("Xarita", Icons.Default.LocationOn),
-    Notifications("Bildirish", Icons.Default.Notifications),
     Profile("Profil", Icons.Default.Person)
 }
 
@@ -80,24 +77,16 @@ fun FamilyCareApp(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    when {
-        uiState.isLoading -> DemoBootScreen()
-        !uiState.isLoggedIn -> DemoLoginScreen(
+    if (uiState.isLoading) {
+        DemoBootScreen()
+    } else {
+        FamilyCareShell(
             uiState = uiState,
-            onRequestCode = viewModel::requestCode,
-            onLogin = viewModel::login,
-            onQuickDemoLogin = viewModel::quickDemoLogin
-        )
-        else -> FamilyCareShell(
-            uiState = uiState,
-            onRefresh = viewModel::refreshDemo,
             onSelectMember = viewModel::selectMember,
             onSignOut = viewModel::signOut,
             onSaveProfile = viewModel::saveProfile,
             onSendInvitation = viewModel::sendInvitation,
-            onAcceptInvitation = viewModel::acceptInvitation,
-            onMarkNotificationRead = viewModel::markNotificationRead,
-            onMarkAllNotificationsRead = viewModel::markAllNotificationsRead,
+            onRegister = viewModel::completeRegistration,
             onTriggerSos = viewModel::triggerSos,
             onDismissSos = viewModel::clearSosState
         )
@@ -113,8 +102,8 @@ private fun DemoBootScreen() {
                 Brush.verticalGradient(
                     colors = listOf(
                         MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.88f),
-                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.52f)
+                        MaterialTheme.colorScheme.tertiary,
+                        MaterialTheme.colorScheme.secondary
                     )
                 )
             )
@@ -123,19 +112,19 @@ private fun DemoBootScreen() {
         Column(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Surface(
-                modifier = Modifier.size(92.dp),
+                modifier = Modifier.size(96.dp),
                 shape = CircleShape,
-                color = Color.White.copy(alpha = 0.16f)
+                color = Color.White.copy(alpha = 0.18f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.LocationOn,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(40.dp)
                     )
                 }
             }
@@ -147,14 +136,13 @@ private fun DemoBootScreen() {
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
-                text = "Live sync • SOS • Invite",
+                text = "Oilaviy xarita, SOS va profil bir joyda",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White.copy(alpha = 0.84f)
+                color = Color.White.copy(alpha = 0.88f)
             )
-
             CircularProgressIndicator(
                 color = Color.White,
-                trackColor = Color.White.copy(alpha = 0.24f)
+                trackColor = Color.White.copy(alpha = 0.25f)
             )
         }
     }
@@ -163,30 +151,26 @@ private fun DemoBootScreen() {
 @Composable
 private fun FamilyCareShell(
     uiState: DemoUiState,
-    onRefresh: () -> Unit,
     onSelectMember: (Int) -> Unit,
     onSignOut: () -> Unit,
     onSaveProfile: (CaregiverProfile) -> DemoActionResult,
     onSendInvitation: (String, String, String) -> DemoActionResult,
-    onAcceptInvitation: (Int) -> DemoActionResult,
-    onMarkNotificationRead: (Int) -> Unit,
-    onMarkAllNotificationsRead: () -> Unit,
+    onRegister: () -> DemoActionResult,
     onTriggerSos: () -> Unit,
     onDismissSos: () -> Unit
 ) {
     val navigationTabs = listOf(DemoTab.Home, DemoTab.Map, DemoTab.Profile)
-    var selectedTab by rememberSaveable { mutableStateOf(DemoTab.Home) }
+    var selectedTab by rememberSaveable { mutableStateOf(DemoTab.Map) }
     var showSosConfirm by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val unreadNotificationsCount = remember(uiState.notifications) {
-        uiState.notifications.count { !it.isRead }
-    }
 
     val showMessage: (String) -> Unit = { message ->
-        scope.launch {
-            snackbarHostState.showSnackbar(message)
-        }
+        scope.launch { snackbarHostState.showSnackbar(message) }
+    }
+
+    val handleResult: (DemoActionResult) -> Unit = { result ->
+        showMessage(result.message)
     }
 
     LaunchedEffect(uiState.sosState.isActive, uiState.sosState.isSending, uiState.sosState.summary) {
@@ -203,7 +187,7 @@ private fun FamilyCareShell(
                     colors = listOf(
                         MaterialTheme.colorScheme.background,
                         Color.White,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.28f)
                     )
                 )
             )
@@ -213,13 +197,18 @@ private fun FamilyCareShell(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
-                ShellTopBar(
-                    selectedTab = selectedTab,
-                    familyLabel = uiState.familyLabel,
-                    lastSyncLabel = uiState.lastSyncLabel,
-                    unreadNotificationsCount = unreadNotificationsCount,
-                    onOpenNotifications = { selectedTab = DemoTab.Notifications }
-                )
+                if (selectedTab == DemoTab.Map && !uiState.isRegistered) {
+                    MapTopBar(
+                        uiState = uiState,
+                        onRegister = { handleResult(onRegister()) }
+                    )
+                } else if (selectedTab != DemoTab.Map) {
+                    ShellTopBar(
+                        selectedTab = selectedTab,
+                        uiState = uiState,
+                        onRegister = { handleResult(onRegister()) }
+                    )
+                }
             },
             floatingActionButton = {
                 Surface(
@@ -227,21 +216,21 @@ private fun FamilyCareShell(
                         .navigationBarsPadding()
                         .padding(bottom = 10.dp)
                         .clickable(onClick = { showSosConfirm = true }),
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color(0xFFD83F2C),
-                    tonalElevation = 2.dp,
-                    shadowElevation = 8.dp
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.error,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 10.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.WarningAmber,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Color.White
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
                             text = "SOS",
@@ -259,10 +248,10 @@ private fun FamilyCareShell(
                         .padding(horizontal = 18.dp, vertical = 8.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(26.dp),
-                        color = Color.White.copy(alpha = 0.94f),
+                        shape = RoundedCornerShape(28.dp),
+                        color = Color.White.copy(alpha = 0.96f),
                         tonalElevation = 2.dp,
-                        shadowElevation = 8.dp
+                        shadowElevation = 10.dp
                     ) {
                         Row(
                             modifier = Modifier
@@ -293,14 +282,8 @@ private fun FamilyCareShell(
                     DemoTab.Home -> HomeScreen(
                         modifier = Modifier.padding(padding),
                         uiState = uiState,
-                        onRefresh = onRefresh,
                         onSelectMember = onSelectMember,
-                        onOpenMap = { memberId ->
-                            memberId?.let(onSelectMember)
-                            selectedTab = DemoTab.Map
-                        },
-                        onSendInvitation = onSendInvitation,
-                        onPrimaryAction = showMessage
+                        onAction = showMessage
                     )
 
                     DemoTab.Map -> FamilyMapScreen(
@@ -310,21 +293,19 @@ private fun FamilyCareShell(
                         onAction = showMessage
                     )
 
-                    DemoTab.Notifications -> NotificationsScreen(
-                        modifier = Modifier.padding(padding),
-                        uiState = uiState,
-                        onAcceptInvite = onAcceptInvitation,
-                        onMarkNotificationRead = onMarkNotificationRead,
-                        onMarkAllNotificationsRead = onMarkAllNotificationsRead,
-                        onAction = showMessage
-                    )
-
                     DemoTab.Profile -> ProfileScreen(
                         modifier = Modifier.padding(padding),
                         uiState = uiState,
-                        onRefresh = onRefresh,
-                        onSignOut = onSignOut,
+                        onSignOut = {
+                            onSignOut()
+                            showMessage("Profil guest holatga o'tkazildi.")
+                        },
                         onSaveProfile = onSaveProfile,
+                        onSendInvitation = onSendInvitation,
+                        onRegister = {
+                            val result = onRegister()
+                            showMessage(result.message)
+                        },
                         onAction = showMessage
                     )
                 }
@@ -336,9 +317,7 @@ private fun FamilyCareShell(
         AlertDialog(
             onDismissRequest = { showSosConfirm = false },
             title = { Text("SOS yuborilsinmi?") },
-            text = {
-                Text("Signal bosilishi bilan barcha oila a'zolariga demo qo'ng'iroq va favqulodda bildirish ketadi.")
-            },
+            text = { Text("Signal bosilishi bilan barcha oila a'zolariga ogohlantiruvchi xabar yuboriladi.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -351,7 +330,7 @@ private fun FamilyCareShell(
             },
             dismissButton = {
                 TextButton(onClick = { showSosConfirm = false }) {
-                    Text("Bekor")
+                    Text("Bekor qilish")
                 }
             }
         )
@@ -360,9 +339,7 @@ private fun FamilyCareShell(
     if (uiState.sosState.isActive) {
         AlertDialog(
             onDismissRequest = {
-                if (!uiState.sosState.isSending) {
-                    onDismissSos()
-                }
+                if (!uiState.sosState.isSending) onDismissSos()
             },
             title = { Text("SOS markazi") },
             text = {
@@ -371,7 +348,8 @@ private fun FamilyCareShell(
                     uiState.sosState.contacts.forEach { contact ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(contact.name, fontWeight = FontWeight.SemiBold)
@@ -385,29 +363,17 @@ private fun FamilyCareShell(
                                 icon = if (contact.state == SosContactState.CALLING) {
                                     Icons.Default.WarningAmber
                                 } else {
-                                    Icons.Default.Notifications
+                                    Icons.Default.Person
                                 },
-                                label = if (contact.state == SosContactState.CALLING) {
-                                    "Qo'ng'iroq"
-                                } else {
-                                    "Yuborildi"
-                                },
-                                accent = if (contact.state == SosContactState.CALLING) {
-                                    GlowSand
-                                } else {
-                                    GlowSky
-                                }
+                                label = if (contact.state == SosContactState.CALLING) "Yuborilmoqda" else "Yuborildi",
+                                accent = if (contact.state == SosContactState.CALLING) GlowRose else GlowMint
                             )
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (!uiState.sosState.isSending) onDismissSos()
-                    }
-                ) {
+                TextButton(onClick = { if (!uiState.sosState.isSending) onDismissSos() }) {
                     Text(if (uiState.sosState.isSending) "Jarayon..." else "Yopish")
                 }
             }
@@ -416,18 +382,38 @@ private fun FamilyCareShell(
 }
 
 @Composable
+private fun MapTopBar(
+    uiState: DemoUiState,
+    onRegister: () -> Unit
+) {
+    Surface(color = Color.Transparent) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (!uiState.isRegistered) {
+                Button(onClick = onRegister, shape = RoundedCornerShape(18.dp)) {
+                    Text("Ro'yxatdan o'tish")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ShellTopBar(
     selectedTab: DemoTab,
-    familyLabel: String,
-    lastSyncLabel: String,
-    unreadNotificationsCount: Int,
-    onOpenNotifications: () -> Unit
+    uiState: DemoUiState,
+    onRegister: () -> Unit
 ) {
     val (title, subtitle, accent) = when (selectedTab) {
-        DemoTab.Home -> Triple("Pulse", familyLabel, GlowSky)
-        DemoTab.Map -> Triple("Live Map", "Markerlar jonli", GlowSand)
-        DemoTab.Notifications -> Triple("Inbox", "Taklif va signal", GlowRose)
-        DemoTab.Profile -> Triple("Profile", "Ruxsat va sozlama", GlowSky)
+        DemoTab.Home -> Triple("Uy", "Masofa, oila va SOS holati", GlowSky)
+        DemoTab.Map -> Triple("Xarita", "Jonli joylashuv va oilaviy markerlar", GlowSand)
+        DemoTab.Profile -> Triple("Profil", "Shaxsiy ma'lumotlar va oila qo'shish", GlowSky)
     }
 
     Surface(color = Color.Transparent) {
@@ -435,47 +421,31 @@ private fun ShellTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 18.dp, vertical = 8.dp)
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = Color.White.copy(alpha = 0.9f),
+                shape = RoundedCornerShape(28.dp),
+                color = Color.White.copy(alpha = 0.95f),
                 tonalElevation = 2.dp,
-                shadowElevation = 6.dp
+                shadowElevation = 8.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = accent
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .padding(8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = selectedTab.icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 text = title,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
@@ -484,38 +454,36 @@ private fun ShellTopBar(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
+                        if (!uiState.isRegistered) {
+                            Button(onClick = onRegister, shape = RoundedCornerShape(18.dp)) {
+                                Text("Ro'yxatdan o'tish")
+                            }
+                        } else {
+                            SymbolChip(
+                                icon = Icons.Default.Person,
+                                label = "Aktiv profil",
+                                accent = GlowMint
+                            )
+                        }
                     }
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         SymbolChip(
-                            icon = Icons.Default.LocationOn,
-                            label = lastSyncLabel,
-                            accent = MaterialTheme.colorScheme.primary
+                            modifier = Modifier.weight(1f),
+                            icon = selectedTab.icon,
+                            label = uiState.familyLabel,
+                            accent = accent
                         )
-                        IconButton(onClick = onOpenNotifications) {
-                            BadgedBox(
-                                badge = {
-                                    if (unreadNotificationsCount > 0) {
-                                        Badge {
-                                            Text(unreadNotificationsCount.toString())
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Notifications,
-                                    contentDescription = "Bildirishnomalar",
-                                    tint = if (selectedTab == DemoTab.Notifications) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
-                            }
-                        }
+                        SymbolChip(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.LocationOn,
+                            label = uiState.lastSyncLabel,
+                            accent = GlowSky
+                        )
                     }
                 }
             }
@@ -535,7 +503,7 @@ private fun CompactNavItem(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
         color = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.11f)
         } else {
             Color.Transparent
         }
@@ -543,7 +511,7 @@ private fun CompactNavItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 10.dp),
+                .padding(horizontal = 10.dp, vertical = 11.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -564,11 +532,7 @@ private fun CompactNavItem(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
+                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -577,11 +541,7 @@ private fun CompactNavItem(
                 modifier = Modifier.padding(start = 6.dp),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
+                color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

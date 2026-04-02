@@ -1,25 +1,27 @@
 package com.example.myapplication.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.SendToMobile
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,8 +32,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,26 +46,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.model.DemoUiState
-import com.example.myapplication.ui.component.SymbolChip
-import com.example.myapplication.ui.theme.GlowRose
-import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
+import com.example.myapplication.ui.theme.Linen
+import com.example.myapplication.ui.theme.Mist
 
 @Composable
 fun DemoLoginScreen(
     uiState: DemoUiState,
     onRequestCode: (String) -> Unit,
     onLogin: (String, String) -> Unit,
-    onQuickDemoLogin: () -> Unit
+    onRegister: (String, String) -> Unit
 ) {
-    var phone by rememberSaveable { mutableStateOf("90 123 45 67") }
+    var phone by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
-
-    LaunchedEffect(uiState.otpRequested) {
-        if (uiState.otpRequested && code.isBlank()) {
-            code = uiState.otpHint
-        }
-    }
+    val isBusy = uiState.isSendingCode || uiState.isVerifying
 
     Box(
         modifier = Modifier
@@ -71,191 +67,242 @@ fun DemoLoginScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF8F4EA),
-                        Color(0xFFE7F3ED),
-                        Color(0xFFDCE9F6)
+                        Color.White,
+                        Mist,
+                        GlowSky.copy(alpha = 0.72f)
                     )
                 )
             )
-            .padding(20.dp)
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
         Surface(
             modifier = Modifier
-                .size(150.dp)
+                .size(190.dp)
                 .align(Alignment.TopEnd),
             shape = CircleShape,
-            color = Color.White.copy(alpha = 0.22f)
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+        ) {}
+
+        Surface(
+            modifier = Modifier
+                .size(140.dp)
+                .align(Alignment.BottomStart),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
         ) {}
 
         Column(
             modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxSize()
+                .padding(top = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Card(
-                shape = RoundedCornerShape(34.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
             ) {
-                Column(
-                    modifier = Modifier.padding(22.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(60.dp),
-                            shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.16f)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                            imageVector = Icons.Default.LocationOn,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "Family Care",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Text(
-                                text = "Live • SOS • Invite",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f)
-                            )
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SymbolChip(
-                            icon = Icons.Default.Security,
-                            label = "OTP",
-                            accent = GlowSand
-                        )
-                        SymbolChip(
-                            icon = Icons.Default.Bolt,
-                            label = "Quick",
-                            accent = GlowRose
-                        )
-                        SymbolChip(
-                            icon = Icons.AutoMirrored.Filled.SendToMobile,
-                            label = "Demo",
-                            accent = GlowSky
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Xavfsiz kirish",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Telefon raqam va SMS kod bilan davom eting",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "API hali ulanmagan. Hozircha demo oqim ishlaydi va test kodi sifatida ${uiState.otpHint} dan foydalanish mumkin.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             Card(
-                shape = RoundedCornerShape(34.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.94f))
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(22.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    Text(
-                        text = "Kirish",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = "Telefon orqali kirib, jonli demo oqimini ko'ring.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Surface(
+                        modifier = Modifier.size(56.dp),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Hisobga kirish",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = "Telefon raqamingizni kiriting, so'ng SMS kod bilan tasdiqlang.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
                     OutlinedTextField(
                         value = phone,
                         onValueChange = { phone = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Telefon") },
-                        placeholder = { Text("90 123 45 67") },
+                        label = { Text("Telefon raqam") },
+                        placeholder = { Text("+998 90 123 45 67") },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
-                        shape = RoundedCornerShape(22.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
 
-                    if (uiState.otpRequested) {
-                        OutlinedTextField(
-                            value = code,
-                            onValueChange = { code = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Kod") },
-                            placeholder = { Text(uiState.otpHint) },
-                            leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(22.dp)
-                        )
-                    }
+                    OutlinedTextField(
+                        value = code,
+                        onValueChange = { code = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("SMS kod") },
+                        placeholder = { Text("2580") },
+                        leadingIcon = { Icon(Icons.Default.Sms, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        singleLine = true,
+                        shape = RoundedCornerShape(20.dp)
+                    )
 
-                    if (uiState.otpRequested) {
-                        SymbolChip(
-                            icon = Icons.Default.Security,
-                            label = "Demo kod: ${uiState.otpHint}",
-                            accent = MaterialTheme.colorScheme.primary
-                        )
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = Linen.copy(alpha = 0.65f),
+                        tonalElevation = 0.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = if (uiState.otpRequested) {
+                                        "Demo SMS kodi yuborildi"
+                                    } else {
+                                        "SMS kod olish"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (uiState.otpRequested) {
+                                        "Test kod: ${uiState.otpHint}"
+                                    } else {
+                                        "API tayyor bo'lguncha demo koddan foydalaniladi."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(
+                                onClick = { onRequestCode(phone) },
+                                enabled = !isBusy
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sms,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = if (uiState.isSendingCode) "Yuborilmoqda" else "Kod olish",
+                                    modifier = Modifier.padding(start = 6.dp)
+                                )
+                            }
+                        }
                     }
 
                     uiState.loginError?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.10f),
+                            modifier = Modifier.border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.14f),
+                                shape = RoundedCornerShape(18.dp)
+                            )
+                        ) {
+                            Text(
+                                text = error,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
 
-                    if (uiState.isSendingCode || uiState.isVerifying) {
+                    if (isBusy) {
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
                             trackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     Button(
-                        onClick = {
-                            if (uiState.otpRequested) {
-                                onLogin(phone, code)
-                            } else {
-                                onRequestCode(phone)
-                            }
-                        },
+                        onClick = { onLogin(phone, code) },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !uiState.isSendingCode && !uiState.isVerifying
+                        enabled = !isBusy,
+                        shape = RoundedCornerShape(20.dp)
                     ) {
-                        Icon(
-                            imageVector = if (uiState.otpRequested) Icons.Default.Key else Icons.AutoMirrored.Filled.SendToMobile,
-                            contentDescription = null
+                        Icon(Icons.Default.Key, contentDescription = null)
+                        Text(
+                            text = "Kirish",
+                            modifier = Modifier.padding(start = 8.dp)
                         )
-                        SpacerWidth()
-                        Text(if (uiState.otpRequested) "Kirish" else "Kod olish")
                     }
 
                     OutlinedButton(
-                        onClick = onQuickDemoLogin,
+                        onClick = { onRegister(phone, code) },
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !isBusy,
                         shape = RoundedCornerShape(20.dp)
                     ) {
-                        Icon(Icons.Default.Bolt, contentDescription = null)
-                        SpacerWidth()
-                        Text("Tez demo")
+                        Icon(Icons.Default.PersonAdd, contentDescription = null)
+                        Text(
+                            text = "Ro'yxatdan o'tish",
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
                     }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun SpacerWidth() {
-    Box(modifier = Modifier.width(8.dp))
 }
