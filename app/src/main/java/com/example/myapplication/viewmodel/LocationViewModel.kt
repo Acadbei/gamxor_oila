@@ -747,6 +747,7 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
             phone = formatFlexiblePhone(profile.phone),
             schedule = "20:00 oilaviy check-in",
             avatarSeed = profile.avatarSeed,
+            avatarUri = profile.avatarUri,
             distanceKm = previous?.distanceKm ?: 3.6,
             isCurrentUser = true
         )

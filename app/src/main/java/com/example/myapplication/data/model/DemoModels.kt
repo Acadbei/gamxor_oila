@@ -70,6 +70,7 @@ data class FamilyMember(
     val phone: String,
     val schedule: String,
     val avatarSeed: Int = 0,
+    val avatarUri: String = "",
     val distanceKm: Double = 0.0,
     val isCurrentUser: Boolean = false
 )
@@ -178,6 +179,7 @@ private fun defaultSelfMember() = FamilyMember(
     phone = "+998 90 321 45 67",
     schedule = "20:00 oilaviy check-in",
     avatarSeed = 0,
+    avatarUri = "",
     distanceKm = 3.6,
     isCurrentUser = true
 )
