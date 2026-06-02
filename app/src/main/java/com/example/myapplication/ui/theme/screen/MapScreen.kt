@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
+import android.graphics.DashPathEffect
 import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
@@ -17,6 +18,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.util.Base64
 import android.widget.TextView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -35,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -65,12 +68,16 @@ import androidx.core.graphics.ColorUtils
 import com.example.myapplication.R
 import com.example.myapplication.data.model.DemoUiState
 import com.example.myapplication.data.model.FamilyMember
+import com.example.myapplication.tracking.LatLng
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.infowindow.InfoWindow
 import java.io.File
 import kotlin.math.roundToInt
@@ -79,7 +86,9 @@ import kotlin.math.roundToInt
 fun FamilyMapScreen(
     modifier: Modifier = Modifier,
     uiState: DemoUiState,
-    onSelectMember: (Int) -> Unit
+    onSelectMember: (Int) -> Unit,
+    onToggleHistory: () -> Unit,
+    onToggleSosRoutes: () -> Unit
 ) {
     val context = LocalContext.current
     val household = remember(uiState.selfMember, uiState.members) {
@@ -96,7 +105,15 @@ fun FamilyMapScreen(
     val selectedMember = household.firstOrNull { it.id == uiState.selectedMemberId } ?: uiState.selfMember
     val defaultPoint = GeoPoint(selectedMember.lat, selectedMember.lon)
     val markerMap = remember { mutableMapOf<Int, Marker>() }
+    val historyLineShadow = remember { Polyline() }
+    val historyLineCasing = remember { Polyline() }
+    val historyLine = remember { Polyline() }
+    val liveRouteLine = remember { Polyline() }
+    val storedRouteOverlays = remember { mutableListOf<Polyline>() }
+    val sosRouteOverlays = remember { mutableListOf<Polyline>() }
+    val historyPointOverlays = remember { mutableListOf<Polygon>() }
     var openInfoMemberId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var focusRequest by rememberSaveable { mutableStateOf(0) }
 
     val mapView = remember {
         MapView(context).apply {
@@ -114,6 +131,13 @@ fun FamilyMapScreen(
     LaunchedEffect(household, activeSosMemberIds) {
         mapView.overlays.clear()
         markerMap.clear()
+        historyLineShadow.setPoints(emptyList())
+        historyLineCasing.setPoints(emptyList())
+        historyLine.setPoints(emptyList())
+        liveRouteLine.setPoints(emptyList())
+        storedRouteOverlays.clear()
+        sosRouteOverlays.clear()
+        historyPointOverlays.clear()
 
         mapView.overlays.add(
             MapEventsOverlay(
@@ -150,6 +174,7 @@ fun FamilyMapScreen(
                 setOnMarkerClickListener { tappedMarker, _ ->
                     openInfoMemberId = member.id
                     onSelectMember(member.id)
+                    focusRequest += 1
                     InfoWindow.closeAllInfoWindowsOn(mapView)
                     tappedMarker.showInfoWindow()
                     true
@@ -160,10 +185,18 @@ fun FamilyMapScreen(
             mapView.overlays.add(marker)
         }
 
+        if (uiState.isHistoryVisible) {
+            mapView.overlays.add(historyLineShadow)
+            mapView.overlays.add(historyLineCasing)
+            mapView.overlays.add(historyLine)
+        }
+        mapView.overlays.add(liveRouteLine)
+        moveMemberMarkersToFront(mapView, markerMap)
+
         mapView.invalidate()
     }
 
-    LaunchedEffect(selectedMember.id, activeSosMemberIds) {
+    LaunchedEffect(selectedMember.id, focusRequest, activeSosMemberIds) {
         markerMap.forEach { (memberId, marker) ->
             val member = household.firstOrNull { it.id == memberId } ?: return@forEach
             marker.icon = createAvatarMarkerDrawable(
@@ -181,6 +214,192 @@ fun FamilyMapScreen(
         InfoWindow.closeAllInfoWindowsOn(mapView)
         openInfoMemberId?.let { memberId ->
             markerMap[memberId]?.showInfoWindow()
+        }
+        mapView.invalidate()
+    }
+
+    LaunchedEffect(uiState.liveRoute) {
+        liveRouteLine.outlinePaint.apply {
+            color = AndroidColor.parseColor("#059669")
+            strokeWidth = 9f
+            isAntiAlias = true
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        liveRouteLine.setPoints(uiState.liveRoute.map { point ->
+            GeoPoint(point.latitude, point.longitude)
+        })
+        if (!mapView.overlays.contains(liveRouteLine)) {
+            mapView.overlays.add(liveRouteLine)
+        }
+        moveMemberMarkersToFront(mapView, markerMap)
+        mapView.invalidate()
+    }
+
+    LaunchedEffect(uiState.storedRoutes) {
+        storedRouteOverlays.forEach { mapView.overlays.remove(it) }
+        storedRouteOverlays.clear()
+
+        uiState.storedRoutes.forEachIndexed { index, route ->
+            if (route.size < 2) return@forEachIndexed
+            val routeLine = Polyline().apply {
+                outlinePaint.apply {
+                    color = if (index == uiState.storedRoutes.lastIndex) {
+                        AndroidColor.parseColor("#059669")
+                    } else {
+                        AndroidColor.parseColor("#64748B")
+                    }
+                    strokeWidth = if (index == uiState.storedRoutes.lastIndex) 9f else 6f
+                    isAntiAlias = true
+                    strokeCap = Paint.Cap.ROUND
+                    strokeJoin = Paint.Join.ROUND
+                }
+                setPoints(route.map { point -> GeoPoint(point.latitude, point.longitude) })
+            }
+            storedRouteOverlays.add(routeLine)
+            mapView.overlays.add(routeLine)
+        }
+        moveMemberMarkersToFront(mapView, markerMap)
+        mapView.invalidate()
+    }
+
+    LaunchedEffect(household, activeSosMemberIds, uiState.isSosRouteVisible, uiState.sosRoutes) {
+        sosRouteOverlays.forEach { mapView.overlays.remove(it) }
+        sosRouteOverlays.clear()
+
+        if (uiState.isSosRouteVisible && uiState.sosRoutes.isNotEmpty()) {
+            val routeColors = listOf(
+                AndroidColor.parseColor("#F59E0B"),
+                AndroidColor.parseColor("#EF4444"),
+                AndroidColor.parseColor("#0EA5E9"),
+                AndroidColor.parseColor("#22C55E")
+            )
+            val allRoutePoints = mutableListOf<GeoPoint>()
+
+            uiState.sosRoutes.forEachIndexed { index, route ->
+                val dijkstraPoints = route.dijkstraRoute.map { it.toGeoPoint() }
+                val astarPoints = route.astarRoute.map { it.toGeoPoint() }
+                allRoutePoints.addAll(dijkstraPoints)
+                allRoutePoints.addAll(astarPoints)
+
+                if (dijkstraPoints.size >= 2) {
+                    val dijkstraLine = Polyline().apply {
+                        outlinePaint.apply {
+                            color = ColorUtils.setAlphaComponent(
+                                routeColors[index % routeColors.size],
+                                150
+                            )
+                            strokeWidth = 8f
+                            isAntiAlias = true
+                            strokeCap = Paint.Cap.ROUND
+                            strokeJoin = Paint.Join.ROUND
+                            pathEffect = DashPathEffect(floatArrayOf(18f, 14f), 0f)
+                        }
+                        setPoints(dijkstraPoints)
+                    }
+                    sosRouteOverlays.add(dijkstraLine)
+                    mapView.overlays.add(dijkstraLine)
+                }
+
+                if (astarPoints.size >= 2) {
+                    val astarLine = Polyline().apply {
+                        outlinePaint.apply {
+                            color = routeColors[index % routeColors.size]
+                            strokeWidth = 10f
+                            isAntiAlias = true
+                            strokeCap = Paint.Cap.ROUND
+                            strokeJoin = Paint.Join.ROUND
+                        }
+                        setPoints(astarPoints)
+                    }
+                    sosRouteOverlays.add(astarLine)
+                    mapView.overlays.add(astarLine)
+                }
+            }
+
+            if (allRoutePoints.size > 1) {
+                mapView.zoomToBoundingBox(BoundingBox.fromGeoPointsSafe(allRoutePoints), true, 180)
+            }
+            moveMemberMarkersToFront(mapView, markerMap)
+        }
+        mapView.invalidate()
+    }
+
+    LaunchedEffect(uiState.isHistoryVisible, uiState.selectedMemberHistory, selectedMember.id) {
+        historyPointOverlays.forEach { mapView.overlays.remove(it) }
+        historyPointOverlays.clear()
+
+        if (uiState.isHistoryVisible && uiState.selectedMemberHistory.isNotEmpty()) {
+            historyLineShadow.outlinePaint.apply {
+                color = AndroidColor.argb(92, 15, 23, 42)
+                strokeWidth = 28f
+                isAntiAlias = true
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            historyLineCasing.outlinePaint.apply {
+                color = AndroidColor.WHITE
+                strokeWidth = 22f
+                isAntiAlias = true
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            historyLine.outlinePaint.apply {
+                color = AndroidColor.parseColor("#1457E6")
+                strokeWidth = 12f
+                isAntiAlias = true
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            val historyPoints = uiState.selectedMemberHistory.map { point ->
+                GeoPoint(point.lat, point.lon)
+            }
+            historyLineShadow.setPoints(historyPoints)
+            historyLineCasing.setPoints(historyPoints)
+            historyLine.setPoints(historyPoints)
+            if (!mapView.overlays.contains(historyLineShadow)) {
+                mapView.overlays.add(historyLineShadow)
+            }
+            if (!mapView.overlays.contains(historyLineCasing)) {
+                mapView.overlays.add(historyLineCasing)
+            }
+            if (!mapView.overlays.contains(historyLine)) {
+                mapView.overlays.add(historyLine)
+            }
+
+            historyPoints.forEachIndexed { index, geoPoint ->
+                val isEndpoint = index == 0 || index == historyPoints.lastIndex
+                val isWaypoint = index % 10 == 0
+                if (!isEndpoint && !isWaypoint) return@forEachIndexed
+                val pointOverlay = Polygon().apply {
+                    points = Polygon.pointsAsCircle(geoPoint, if (isEndpoint) 18.0 else 7.0)
+                    fillColor = when (index) {
+                        0 -> AndroidColor.parseColor("#16A34A")
+                        historyPoints.lastIndex -> AndroidColor.parseColor("#DC2626")
+                        else -> AndroidColor.parseColor("#FFFFFF")
+                    }
+                    strokeColor = AndroidColor.parseColor("#1457E6")
+                    strokeWidth = if (isEndpoint) 5f else 3f
+                }
+                historyPointOverlays.add(pointOverlay)
+                mapView.overlays.add(pointOverlay)
+            }
+            moveMemberMarkersToFront(mapView, markerMap)
+
+            val boundingBox = BoundingBox.fromGeoPointsSafe(historyPoints)
+            if (historyPoints.size > 1) {
+                mapView.zoomToBoundingBox(boundingBox, true, 140)
+            } else {
+                mapView.controller.animateTo(historyPoints.first())
+                mapView.controller.setZoom(16.0)
+            }
+        } else {
+            historyLineShadow.setPoints(emptyList())
+            historyLineCasing.setPoints(emptyList())
+            historyLine.setPoints(emptyList())
+            mapView.overlays.remove(historyLineShadow)
+            mapView.overlays.remove(historyLineCasing)
+            mapView.overlays.remove(historyLine)
         }
         mapView.invalidate()
     }
@@ -215,29 +434,116 @@ fun FamilyMapScreen(
                 shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f))
             ) {
-                LazyRow(
+                Column(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = PaddingValues(end = 8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(household, key = { it.id }) { member ->
-                        MapPersonChip(
-                            member = member,
-                            isSelected = member.id == selectedMember.id,
-                            hasActiveSos = member.id in activeSosMemberIds,
-                            onClick = {
-                                onSelectMember(member.id)
-                                openInfoMemberId = member.id
-                                InfoWindow.closeAllInfoWindowsOn(mapView)
-                                markerMap[member.id]?.showInfoWindow()
-                            }
-                        )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(end = 8.dp)
+                    ) {
+                        items(household, key = { it.id }) { member ->
+                            MapPersonChip(
+                                member = member,
+                                isSelected = member.id == selectedMember.id,
+                                hasActiveSos = member.id in activeSosMemberIds,
+                                onClick = {
+                                    onSelectMember(member.id)
+                                    openInfoMemberId = member.id
+                                    focusRequest += 1
+                                    InfoWindow.closeAllInfoWindowsOn(mapView)
+                                    markerMap[member.id]?.showInfoWindow()
+                                }
+                            )
+                        }
                     }
+
+                    Surface(
+                        modifier = Modifier.clickable(onClick = onToggleHistory),
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (uiState.isHistoryVisible) {
+                            Color(0xFFE8F0FF)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f)
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Text(
+                                text = when {
+                                    uiState.isHistoryLoading -> "${selectedMember.name} yo'l tarixi yuklanmoqda..."
+                                    uiState.isHistoryVisible -> "${selectedMember.name} yo'l tarixini yashirish"
+                                    else -> "${selectedMember.name} yo'l tarixini ko'rsatish"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (uiState.isHistoryLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier.clickable(onClick = onToggleSosRoutes),
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (uiState.isSosRouteVisible) {
+                            Color(0xFFFFF3E0)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f)
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Text(
+                                text = when {
+                                    uiState.isSosRouteLoading -> "SOS marshruti yuklanmoqda..."
+                                    uiState.isSosRouteVisible -> "SOS marshrutini yashirish"
+                                    uiState.activeSosAlerts.isEmpty() -> "Faol SOS yo'q"
+                                    else -> "SOS marshrutini chizish"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (uiState.isSosRouteLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                    }
+
                 }
             }
         }
     }
 }
+
+private fun moveMemberMarkersToFront(
+    mapView: MapView,
+    markerMap: Map<Int, Marker>
+) {
+    markerMap.values.forEach { marker ->
+        mapView.overlays.remove(marker)
+        mapView.overlays.add(marker)
+    }
+}
+
+private fun LatLng.toGeoPoint(): GeoPoint = GeoPoint(latitude, longitude)
 
 @Composable
 private fun MapPersonChip(
@@ -874,6 +1180,7 @@ private fun loadAvatarBitmap(
     return runCatching {
         val uri = Uri.parse(normalizedUri)
         when {
+            normalizedUri.startsWith("data:image") -> decodeDataImage(normalizedUri)
             uri.scheme == "file" -> BitmapFactory.decodeFile(uri.path)
             uri.scheme.isNullOrBlank() -> BitmapFactory.decodeFile(File(normalizedUri).absolutePath)
             else -> context.contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -881,6 +1188,13 @@ private fun loadAvatarBitmap(
             }
         }
     }.getOrNull()
+}
+
+private fun decodeDataImage(value: String): Bitmap? {
+    val dataPart = value.substringAfter("base64,", "")
+    if (dataPart.isBlank()) return null
+    val bytes = Base64.decode(dataPart, Base64.DEFAULT)
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 }
 
 private fun markerPalette(
@@ -940,9 +1254,9 @@ private class FamilyMemberInfoWindow(
 
         name.text = member.name
         relation.text = if (hasActiveSos) {
-            "${member.relation} • Tezkor nazorat kerak"
+            "${member.relation} | Tezkor nazorat kerak"
         } else {
-            member.relation
+            "${member.relation} | ${member.presenceLabel}"
         }
         place.text = member.placeLabel
         phone.text = member.phone

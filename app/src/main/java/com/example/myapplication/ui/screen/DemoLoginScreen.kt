@@ -16,7 +16,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Sms
@@ -35,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,12 +46,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.myapplication.data.model.BackendStatus
 import com.example.myapplication.data.model.DemoActionResult
 import com.example.myapplication.data.model.DemoUiState
+import com.example.myapplication.ui.theme.GlowMint
+import com.example.myapplication.ui.theme.GlowRose
 import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
+import kotlinx.coroutines.launch
 
 private enum class RegistrationStep(
     val title: String,
@@ -71,22 +80,37 @@ private enum class RegistrationStep(
 fun DemoLoginScreen(
     uiState: DemoUiState,
     onRequestCode: (String) -> Unit,
-    onVerifyCode: (String, String) -> DemoActionResult,
-    onCompleteRegistration: (String, String) -> DemoActionResult,
+    onVerifyCode: (String, String) -> Unit,
+    onCompleteRegistration: (String, String) -> Unit,
+    onUpdateServerUrl: suspend (String) -> DemoActionResult,
+    onCheckBackend: () -> Unit,
     onBack: () -> Unit
 ) {
-    var phone by rememberSaveable { mutableStateOf("+998 ") }
+    var phone by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue("+998 "))
+    }
     var code by rememberSaveable { mutableStateOf("") }
     var fullName by rememberSaveable { mutableStateOf("") }
     var step by rememberSaveable { mutableStateOf(RegistrationStep.Phone) }
-
+    var serverUrl by rememberSaveable(uiState.backendConnection.baseUrl) {
+        mutableStateOf(uiState.backendConnection.baseUrl)
+    }
     LaunchedEffect(uiState.otpRequested) {
         if (uiState.otpRequested) {
             step = RegistrationStep.Code
         }
     }
 
+    LaunchedEffect(uiState.isCodeVerified) {
+        if (uiState.isCodeVerified) {
+            step = RegistrationStep.Name
+        }
+    }
+
     val isBusy = uiState.isSendingCode || uiState.isVerifying
+    val phoneReady = isUzPhoneComplete(phone.text)
+    val codeReady = code.length >= 4
+    val nameReady = uiState.hasExistingAccount || fullName.trim().length >= 2
 
     Box(
         modifier = Modifier
@@ -190,6 +214,11 @@ fun DemoLoginScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 label = { Text("Telefon raqami") },
                                 placeholder = { Text("+998 90 123 45 67") },
+                                supportingText = {
+                                    Text(
+                                        if (phoneReady) "Raqam tayyor." else "9 xonali telefon raqamini to'liq kiriting."
+                                    )
+                                },
                                 leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                                 singleLine = true,
@@ -202,9 +231,9 @@ fun DemoLoginScreen(
                             )
 
                             Button(
-                                onClick = { onRequestCode(phone) },
+                                onClick = { onRequestCode(phone.text) },
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !isBusy,
+                                enabled = phoneReady && !isBusy,
                                 shape = RoundedCornerShape(20.dp)
                             ) {
                                 Icon(Icons.Default.Sms, contentDescription = null)
@@ -218,7 +247,7 @@ fun DemoLoginScreen(
                         RegistrationStep.Code -> {
                             InfoNote(
                                 title = "Kiritilgan raqam",
-                                description = phone
+                                description = phone.text
                             )
 
                             OutlinedTextField(
@@ -227,6 +256,9 @@ fun DemoLoginScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 label = { Text("SMS kod") },
                                 placeholder = { Text(uiState.otpHint) },
+                                supportingText = {
+                                    Text("Demo rejimida 4 yoki 6 xonali kod ishlaydi.")
+                                },
                                 leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
@@ -251,13 +283,10 @@ fun DemoLoginScreen(
 
                                 Button(
                                     onClick = {
-                                        val result = onVerifyCode(phone, code)
-                                        if (result.success) {
-                                            step = RegistrationStep.Name
-                                        }
+                                        onVerifyCode(phone.text, code)
                                     },
                                     modifier = Modifier.weight(1f),
-                                    enabled = !isBusy,
+                                    enabled = codeReady && !isBusy,
                                     shape = RoundedCornerShape(20.dp)
                                 ) {
                                     Icon(Icons.Default.VerifiedUser, contentDescription = null)
@@ -272,15 +301,23 @@ fun DemoLoginScreen(
                         RegistrationStep.Name -> {
                             InfoNote(
                                 title = "Tasdiqlangan raqam",
-                                description = phone
+                                description = phone.text
                             )
 
                             OutlinedTextField(
                                 value = fullName,
                                 onValueChange = { fullName = it },
                                 modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Ism") },
-                                placeholder = { Text("Masalan, Nodir") },
+                                label = { Text(if (uiState.hasExistingAccount) "Ism (ixtiyoriy)" else "Ism") },
+                                placeholder = {
+                                    Text(
+                                        if (uiState.hasExistingAccount) {
+                                            "Agar hisob mavjud bo'lsa bo'sh qoldirishingiz mumkin"
+                                        } else {
+                                            "Masalan, Nodir Yusupov"
+                                        }
+                                    )
+                                },
                                 leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                                 singleLine = true,
@@ -288,18 +325,32 @@ fun DemoLoginScreen(
                             )
 
                             Button(
-                                onClick = { onCompleteRegistration(phone, fullName) },
+                                onClick = { onCompleteRegistration(phone.text, fullName) },
                                 modifier = Modifier.fillMaxWidth(),
+                                enabled = nameReady && !isBusy,
                                 shape = RoundedCornerShape(20.dp)
                             ) {
                                 Icon(Icons.Default.VerifiedUser, contentDescription = null)
                                 Text(
-                                    text = "Ilovaga kirish",
+                                    text = if (uiState.hasExistingAccount) "Ilovaga kirish" else "Ro'yxatdan o'tish",
                                     modifier = Modifier.padding(start = 8.dp)
                                 )
                             }
                         }
                     }
+
+                    ServerSettingsBlock(
+                        currentStatus = uiState.backendConnection.label,
+                        backendDetail = uiState.backendConnection.detail,
+                        serverUrl = serverUrl,
+                        onServerUrlChange = { serverUrl = it },
+                        onSaveServerUrl = {
+                            val result = onUpdateServerUrl(serverUrl)
+                            serverUrl = uiState.backendConnection.baseUrl.ifBlank { serverUrl }
+                            result
+                        },
+                        onCheckBackend = onCheckBackend
+                    )
 
                     uiState.loginError?.let { error ->
                         Surface(
@@ -325,6 +376,96 @@ fun DemoLoginScreen(
 
                     Spacer(modifier = Modifier.height(2.dp))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServerSettingsBlock(
+    currentStatus: String,
+    backendDetail: String,
+    serverUrl: String,
+    onServerUrlChange: (String) -> Unit,
+    onSaveServerUrl: suspend () -> DemoActionResult,
+    onCheckBackend: () -> Unit
+) {
+    var lastActionMessage by rememberSaveable { mutableStateOf("") }
+    val isOnline = currentStatus == BackendStatus.ONLINE.name || currentStatus == "Online"
+    val scope = rememberCoroutineScope()
+
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = Color(0xFFF8F6F1)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (isOnline) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                        contentDescription = null,
+                        tint = if (isOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = "Server: $currentStatus",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                TextButton(onClick = onCheckBackend) {
+                    Text("Tekshirish")
+                }
+            }
+
+            Text(
+                text = backendDetail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = onServerUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Vaqtinchalik server manzili") },
+                placeholder = { Text("http://10.0.2.2:8000/api/v1/") },
+                leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                singleLine = true,
+                shape = RoundedCornerShape(18.dp)
+            )
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        lastActionMessage = onSaveServerUrl().message
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Text("Server manzilini saqlash")
+            }
+
+            if (lastActionMessage.isNotBlank()) {
+                Text(
+                    text = lastActionMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

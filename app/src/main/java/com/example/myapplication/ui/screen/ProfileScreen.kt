@@ -3,6 +3,7 @@ package com.example.myapplication.ui.screen
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,18 +27,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,28 +67,36 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.model.CaregiverProfile
 import com.example.myapplication.data.model.DemoActionResult
 import com.example.myapplication.data.model.DemoUiState
+import com.example.myapplication.data.model.BackendStatus
 import com.example.myapplication.ui.component.InitialsAvatar
 import com.example.myapplication.ui.component.InfoLine
 import com.example.myapplication.ui.component.SectionTitle
 import com.example.myapplication.ui.component.SymbolChip
 import com.example.myapplication.ui.component.initialsFromName
 import com.example.myapplication.ui.theme.GlowMint
+import com.example.myapplication.ui.theme.GlowRose
 import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
+import kotlinx.coroutines.launch
 import java.io.File
+import java.io.ByteArrayOutputStream
 
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     uiState: DemoUiState,
     onSignOut: () -> Unit,
-    onSaveProfile: (CaregiverProfile) -> DemoActionResult,
-    onSendInvitation: (String, String, String) -> DemoActionResult,
+    onSaveProfile: suspend (CaregiverProfile) -> DemoActionResult,
+    onSendInvitation: suspend (String, String, String) -> DemoActionResult,
     onRegister: () -> Unit,
+    onUpdateServerUrl: suspend (String) -> DemoActionResult,
+    onCheckBackend: () -> Unit,
+    onSyncCurrentLocation: () -> Unit,
     onAction: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -91,7 +106,9 @@ fun ProfileScreen(
     var firstName by rememberSaveable(profile.fullName) { mutableStateOf(splitName.first) }
     var lastName by rememberSaveable(profile.fullName) { mutableStateOf(splitName.second) }
     var familyLabel by rememberSaveable(profile.familyLabel) { mutableStateOf(profile.familyLabel) }
-    var phone by rememberSaveable(profile.phone) { mutableStateOf(normalizeUzPhone(profile.phone)) }
+    var phone by rememberSaveable(profile.phone, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(normalizeUzPhone(profile.phone)))
+    }
     var address by rememberSaveable(profile.address) { mutableStateOf(profile.address) }
     var avatarSeed by rememberSaveable(profile.avatarSeed) { mutableIntStateOf(profile.avatarSeed) }
     var avatarUri by rememberSaveable(profile.avatarUri) { mutableStateOf(profile.avatarUri) }
@@ -100,14 +117,20 @@ fun ProfileScreen(
 
     var inviteName by rememberSaveable { mutableStateOf("") }
     var inviteRelation by rememberSaveable { mutableStateOf("") }
-    var invitePhone by rememberSaveable { mutableStateOf("+998 ") }
+    var invitePhone by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue("+998 "))
+    }
+    var serverUrl by rememberSaveable(uiState.backendConnection.baseUrl) {
+        mutableStateOf(uiState.backendConnection.baseUrl)
+    }
+    val scope = rememberCoroutineScope()
 
     fun resetDraft() {
         val resetName = splitFullName(profile.fullName)
         firstName = resetName.first
         lastName = resetName.second
         familyLabel = profile.familyLabel
-        phone = normalizeUzPhone(profile.phone)
+        phone = TextFieldValue(normalizeUzPhone(profile.phone))
         address = profile.address
         avatarSeed = profile.avatarSeed
         avatarUri = profile.avatarUri
@@ -117,7 +140,7 @@ fun ProfileScreen(
     fun buildDraftProfile(): CaregiverProfile {
         return profile.copy(
             fullName = buildFullName(firstName, lastName),
-            phone = phone,
+            phone = phone.text,
             familyLabel = familyLabel,
             address = address,
             avatarSeed = avatarSeed,
@@ -125,13 +148,23 @@ fun ProfileScreen(
         )
     }
 
+    fun requireAuthenticatedAction(): Boolean {
+        if (uiState.isLoggedIn) return true
+        onAction("Ma'lumot kiritish uchun avval ro'yxatdan o'ting yoki ilovaga kiring.")
+        onRegister()
+        return false
+    }
+
     fun persistAvatar(newUri: String) {
+        if (!requireAuthenticatedAction()) return
         avatarUri = newUri
-        val result = onSaveProfile(
-            if (isEditingPersonal) buildDraftProfile().copy(avatarUri = newUri)
-            else profile.copy(avatarUri = newUri, avatarSeed = avatarSeed)
-        )
-        onAction(result.message)
+        scope.launch {
+            val result = onSaveProfile(
+                if (isEditingPersonal) buildDraftProfile().copy(avatarUri = newUri)
+                else profile.copy(avatarUri = newUri, avatarSeed = avatarSeed)
+            )
+            onAction(result.message)
+        }
     }
 
     fun copyAvatarAndPersist(sourceUri: Uri) {
@@ -218,7 +251,7 @@ fun ProfileScreen(
                         )
                     }
 
-                    InfoLine(Icons.Default.Phone, "Telefon", phone)
+                    InfoLine(Icons.Default.Phone, "Telefon", phone.text)
                     InfoLine(Icons.Default.Home, "Manzil", address.ifBlank { "Manzil kiritilmagan" })
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,6 +266,20 @@ fun ProfileScreen(
                             accent = GlowSand
                         )
                     }
+
+                    SymbolChip(
+                        icon = if (uiState.backendConnection.status == BackendStatus.ONLINE) {
+                            Icons.Default.CloudDone
+                        } else {
+                            Icons.Default.CloudOff
+                        },
+                        label = "Server ${uiState.backendConnection.label.lowercase()}",
+                        accent = if (uiState.backendConnection.status == BackendStatus.ONLINE) {
+                            GlowMint
+                        } else {
+                            GlowRose
+                        }
+                    )
 
                     Text(
                         text = "Profil rasmini boshqarish uchun rasm ustiga bosing",
@@ -341,13 +388,17 @@ fun ProfileScreen(
 
                         Button(
                             onClick = {
-                                val result = onSaveProfile(buildDraftProfile())
-                                onAction(result.message)
-                                if (result.success) {
-                                    isEditingPersonal = false
+                                if (!requireAuthenticatedAction()) return@Button
+                                scope.launch {
+                                    val result = onSaveProfile(buildDraftProfile())
+                                    onAction(result.message)
+                                    if (result.success) {
+                                        isEditingPersonal = false
+                                    }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = buildFullName(firstName, lastName).isNotBlank() && isUzPhoneComplete(phone.text)
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = null)
                             Box(modifier = Modifier.width(8.dp))
@@ -355,9 +406,109 @@ fun ProfileScreen(
                         }
                     } else {
                         InfoLine(Icons.Default.Person, "Ism familiya", buildFullName(firstName, lastName))
-                        InfoLine(Icons.Default.Phone, "Telefon", phone)
+                        InfoLine(Icons.Default.Phone, "Telefon", phone.text)
                         InfoLine(Icons.Default.Home, "Manzil", address.ifBlank { "Kiritilmagan" })
                         InfoLine(Icons.Default.Group, "Oila nomi", familyLabel.ifBlank { "Kiritilmagan" })
+                    }
+                }
+            }
+        }
+
+        item {
+            SectionTitle(
+                icon = Icons.Default.Link,
+                title = "Server va sync",
+                subtitle = "Local test va online holati"
+            )
+        }
+
+        item {
+            Card(
+                shape = RoundedCornerShape(30.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Server holati",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        SymbolChip(
+                            icon = if (uiState.backendConnection.status == BackendStatus.ONLINE) {
+                                Icons.Default.CloudDone
+                            } else {
+                                Icons.Default.CloudOff
+                            },
+                            label = uiState.backendConnection.label,
+                            accent = if (uiState.backendConnection.status == BackendStatus.ONLINE) {
+                                GlowMint
+                            } else {
+                                GlowRose
+                            }
+                        )
+                    }
+
+                    Text(
+                        text = uiState.backendConnection.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "So'nggi tekshiruv: ${uiState.backendConnection.checkedAtLabel}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = serverUrl,
+                        onValueChange = { serverUrl = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+                        label = { Text("Server URL") }
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    onAction(onUpdateServerUrl(serverUrl).message)
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Saqlash")
+                        }
+                        TextButton(
+                            onClick = onCheckBackend,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Tekshirish")
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (!requireAuthenticatedAction()) return@Button
+                            onSyncCurrentLocation()
+                            onAction("Joylashuv sync so'rovi yuborildi.")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Sync, contentDescription = null)
+                        Box(modifier = Modifier.width(8.dp))
+                        Text("Hozirgi joylashuvni yuborish")
                     }
                 }
             }
@@ -409,19 +560,33 @@ fun ProfileScreen(
 
                     Button(
                         onClick = {
-                            val result = onSendInvitation(inviteName, inviteRelation, invitePhone)
-                            onAction(result.message)
-                            if (result.success) {
-                                inviteName = ""
-                                inviteRelation = ""
-                                invitePhone = "+998 "
+                            if (!requireAuthenticatedAction()) return@Button
+                            if (!uiState.isSendingInvitation) {
+                                scope.launch {
+                                    val result = onSendInvitation(inviteName, inviteRelation, invitePhone.text)
+                                    onAction(result.message)
+                                    if (result.success) {
+                                        inviteName = ""
+                                        inviteRelation = ""
+                                        invitePhone = TextFieldValue("+998 ")
+                                    }
+                                }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = inviteName.isNotBlank() && isUzPhoneComplete(invitePhone.text) && !uiState.isSendingInvitation
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null)
+                        if (uiState.isSendingInvitation) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                        }
                         Box(modifier = Modifier.width(8.dp))
-                        Text("Oila a'zosini qo'shish")
+                        Text(if (uiState.isSendingInvitation) "Yuborilmoqda..." else "Oila a'zosini qo'shish")
                     }
                 }
             }
@@ -455,13 +620,15 @@ fun ProfileScreen(
                         }
                     }
 
-                    TextButton(
-                        onClick = onSignOut,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
-                        Box(modifier = Modifier.width(8.dp))
-                        Text("Hisobdan chiqish")
+                    if (uiState.isLoggedIn) {
+                        TextButton(
+                            onClick = onSignOut,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
+                            Box(modifier = Modifier.width(8.dp))
+                            Text("Hisobdan chiqish")
+                        }
                     }
                 }
             }
@@ -579,8 +746,19 @@ private fun ProfileImageAvatar(
 private fun loadAvatarBitmap(context: android.content.Context, avatarUri: String): Bitmap? {
     return runCatching {
         val uri = Uri.parse(avatarUri)
-        context.contentResolver.openInputStream(uri)?.use { inputStream ->
-            BitmapFactory.decodeStream(inputStream)
+        when {
+            avatarUri.startsWith("data:image") -> {
+                val dataPart = avatarUri.substringAfter("base64,", "")
+                if (dataPart.isBlank()) null
+                else {
+                    val bytes = Base64.decode(dataPart, Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                }
+            }
+            uri.scheme == "file" -> BitmapFactory.decodeFile(uri.path)
+            else -> context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream)
+            }
         }
     }.getOrNull()
 }
@@ -590,13 +768,13 @@ private fun storeAvatarLocally(
     sourceUri: Uri
 ): String? {
     return runCatching {
-        val avatarFile = File(context.filesDir, "profile-avatar.jpg")
-        context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
-            avatarFile.outputStream().use { outputStream ->
-                inputStream.copyTo(outputStream)
-            }
+        val bitmap = context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+            BitmapFactory.decodeStream(inputStream)
         } ?: return null
-        Uri.fromFile(avatarFile).toString()
+        val output = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 72, output)
+        val encoded = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+        "data:image/jpeg;base64,$encoded"
     }.getOrNull()
 }
 
@@ -604,6 +782,7 @@ private fun deleteStoredAvatar(
     context: android.content.Context,
     avatarUri: String
 ) {
+    if (avatarUri.startsWith("data:image")) return
     val fileUri = runCatching { Uri.parse(avatarUri) }.getOrNull() ?: return
     if (fileUri.scheme != "file") return
 

@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.LocationOn
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.model.AppNotification
+import com.example.myapplication.data.model.BackendStatus
 import com.example.myapplication.data.model.DemoUiState
 import com.example.myapplication.data.model.FamilyMember
 import com.example.myapplication.data.model.NotificationCategory
@@ -136,6 +139,19 @@ fun HomeScreen(
                             icon = Icons.AutoMirrored.Filled.DirectionsWalk,
                             label = "${"%.1f".format(totalDistance)} km",
                             accent = GlowSand
+                        )
+                        SymbolChip(
+                            icon = if (uiState.backendConnection.status == BackendStatus.ONLINE) {
+                                Icons.Default.CloudDone
+                            } else {
+                                Icons.Default.CloudOff
+                            },
+                            label = uiState.backendConnection.label,
+                            accent = if (uiState.backendConnection.status == BackendStatus.ONLINE) {
+                                GlowMint
+                            } else {
+                                GlowRose
+                            }
                         )
                     }
                 }
@@ -413,7 +429,7 @@ private fun SosAlertCard(
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = "${alert.relation} • ${alert.phone}",
+                            text = "${alert.relation} | ${alert.phone}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -518,6 +534,11 @@ private fun HouseholdMemberCard(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     StatusPill(status = member.status)
+                    SymbolChip(
+                        icon = Icons.Default.AccessTime,
+                        label = member.presenceLabel,
+                        accent = if (member.isOnline) GlowMint else GlowSand
+                    )
                     if (member.isCurrentUser) {
                         SymbolChip(
                             icon = Icons.Default.LocationOn,

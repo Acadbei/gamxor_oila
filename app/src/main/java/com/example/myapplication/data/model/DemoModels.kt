@@ -1,5 +1,7 @@
 package com.example.myapplication.data.model
 
+import com.example.myapplication.tracking.LatLng
+
 enum class MemberStatus {
     SAFE,
     MOVING,
@@ -15,7 +17,8 @@ enum class FeedSeverity {
 enum class InvitationStatus {
     PENDING_ACCEPTANCE,
     WAITING_INSTALL,
-    ACCEPTED
+    ACCEPTED,
+    DECLINED
 }
 
 enum class NotificationCategory {
@@ -30,6 +33,28 @@ enum class SosContactState {
     NOTIFIED
 }
 
+enum class BackendStatus {
+    CHECKING,
+    ONLINE,
+    OFFLINE
+}
+
+object DemoModelDefaults {
+    const val defaultOtpHint = "2580"
+    const val defaultSyncLabel = "Hozirgina"
+    const val defaultPlaceLabel = "Mening joylashuvim"
+    const val defaultRelationSelf = "Men"
+    const val defaultPresenceOnline = "Online"
+    const val defaultPresenceOffline = "Offline"
+    const val defaultCaregiverName = "Profil"
+    const val defaultSafeZone = "Uy va ish yo'nalishi"
+    const val defaultDeviceNote = "Asosiy qurilma faol holatda."
+    const val defaultSchedule = "20:00 oilaviy check-in"
+    const val defaultCheckInLabel = "20:00 da umumiy check-in"
+    const val fallbackLatitude = 41.3111
+    const val fallbackLongitude = 69.2797
+}
+
 data class ProfilePermissions(
     val locationEnabled: Boolean = true,
     val microphoneEnabled: Boolean = false,
@@ -39,16 +64,24 @@ data class ProfilePermissions(
 )
 
 data class CaregiverProfile(
-    val fullName: String = "Nodir Yusupov",
-    val phone: String = "+998 90 321 45 67",
-    val email: String = "nodir@familycare.demo",
-    val familyLabel: String = "Yusupovlar oilasi",
-    val address: String = "Yunusobod, 9-kvartal",
-    val emergencyContact: String = "+998 90 777 00 11",
+    val fullName: String = "",
+    val phone: String = "",
+    val email: String = "",
+    val familyLabel: String = "",
+    val address: String = "",
+    val emergencyContact: String = "",
     val avatarSeed: Int = 0,
     val avatarUri: String = "",
-    val bio: String = "Oilaviy monitoring, xavfsizlik va SOS boshqaruvi uchun mas'ulman.",
+    val bio: String = "",
     val permissions: ProfilePermissions = ProfilePermissions()
+)
+
+data class BackendConnection(
+    val status: BackendStatus = BackendStatus.CHECKING,
+    val label: String = "Tekshirilmoqda",
+    val detail: String = "Server holati aniqlanmoqda.",
+    val baseUrl: String = "",
+    val checkedAtLabel: String = ""
 )
 
 data class FamilyMember(
@@ -72,7 +105,45 @@ data class FamilyMember(
     val avatarSeed: Int = 0,
     val avatarUri: String = "",
     val distanceKm: Double = 0.0,
-    val isCurrentUser: Boolean = false
+    val isCurrentUser: Boolean = false,
+    val isOnline: Boolean = false,
+    val presenceLabel: String = "Offline",
+    val lastSeenAt: String? = null
+)
+
+data class LocationHistoryPoint(
+    val id: Int,
+    val memberId: Int,
+    val lat: Double,
+    val lon: Double,
+    val address: String,
+    val placeLabel: String,
+    val battery: Int,
+    val steps: Int,
+    val heartRate: Int,
+    val distanceKm: Double,
+    val createdAt: String? = null,
+    val timeLabel: String = ""
+)
+
+data class SosRouteTrace(
+    val alertId: Int,
+    val memberId: Int,
+    val memberName: String,
+    val relation: String,
+    val phone: String,
+    val sourceMemberId: Int,
+    val sourceLat: Double,
+    val sourceLon: Double,
+    val targetLat: Double,
+    val targetLon: Double,
+    val dijkstraRoute: List<LatLng> = emptyList(),
+    val astarRoute: List<LatLng> = emptyList(),
+    val dijkstraLengthMeters: Double = 0.0,
+    val astarLengthMeters: Double = 0.0,
+    val isSamePath: Boolean = false,
+    val graphNodes: Int = 0,
+    val graphEdges: Int = 0
 )
 
 data class ActivityFeedItem(
@@ -91,7 +162,10 @@ data class FamilyInvitation(
     val phone: String,
     val sentAtLabel: String,
     val status: InvitationStatus,
-    val isPlatformUser: Boolean
+    val isPlatformUser: Boolean,
+    val familyName: String = "",
+    val invitedByName: String = "",
+    val isIncoming: Boolean = false
 )
 
 data class AppNotification(
@@ -122,6 +196,7 @@ data class SosAlert(
 )
 
 data class SosUiState(
+    val alertId: Int? = null,
     val isActive: Boolean = false,
     val isSending: Boolean = false,
     val summary: String = "",
@@ -138,48 +213,66 @@ data class DemoUiState(
     val isLoading: Boolean = true,
     val isLoggedIn: Boolean = false,
     val isRegistered: Boolean = false,
+    val hasExistingAccount: Boolean = false,
     val isSendingCode: Boolean = false,
     val isVerifying: Boolean = false,
+    val isCodeVerified: Boolean = false,
     val isRefreshing: Boolean = false,
+    val isSendingInvitation: Boolean = false,
     val otpRequested: Boolean = false,
-    val otpHint: String = "2580",
+    val otpHint: String = DemoModelDefaults.defaultOtpHint,
     val loginError: String? = null,
-    val caregiverName: String = "Nodir",
-    val familyLabel: String = "Yusupovlar oilasi",
-    val lastSyncLabel: String = "Hozirgina",
+    val caregiverName: String = "",
+    val familyLabel: String = "",
+    val lastSyncLabel: String = DemoModelDefaults.defaultSyncLabel,
     val profile: CaregiverProfile = CaregiverProfile(),
     val selfMember: FamilyMember = defaultSelfMember(),
     val members: List<FamilyMember> = emptyList(),
     val invitations: List<FamilyInvitation> = emptyList(),
+    val incomingInvitations: List<FamilyInvitation> = emptyList(),
     val notifications: List<AppNotification> = emptyList(),
     val activityFeed: List<ActivityFeedItem> = emptyList(),
     val selectedMemberId: Int? = null,
-    val nextCheckInLabel: String = "20:00 da umumiy check-in",
+    val isHistoryVisible: Boolean = false,
+    val isHistoryLoading: Boolean = false,
+    val historyMemberId: Int? = null,
+    val selectedMemberHistory: List<LocationHistoryPoint> = emptyList(),
+    val liveRoute: List<LatLng> = emptyList(),
+    val storedRoutes: List<List<LatLng>> = emptyList(),
+    val isLiveTracking: Boolean = false,
+    val isSosRouteVisible: Boolean = false,
+    val isSosRouteLoading: Boolean = false,
+    val sosRoutes: List<SosRouteTrace> = emptyList(),
+    val nextCheckInLabel: String = DemoModelDefaults.defaultCheckInLabel,
     val trustedPlacesCount: Int = 3,
     val activeSosAlerts: List<SosAlert> = emptyList(),
-    val sosState: SosUiState = SosUiState()
+    val sosState: SosUiState = SosUiState(),
+    val backendConnection: BackendConnection = BackendConnection()
 )
 
 private fun defaultSelfMember() = FamilyMember(
     id = 0,
-    name = "Nodir Yusupov",
-    relation = "Men",
+    name = "",
+    relation = DemoModelDefaults.defaultRelationSelf,
     age = 31,
-    lat = 41.3111,
-    lon = 69.2797,
-    address = "Yunusobod, 9-kvartal",
-    placeLabel = "Uy",
+    lat = DemoModelDefaults.fallbackLatitude,
+    lon = DemoModelDefaults.fallbackLongitude,
+    address = "",
+    placeLabel = DemoModelDefaults.defaultPlaceLabel,
     battery = 92,
     steps = 4680,
     heartRate = 76,
-    lastUpdate = "Hozirgina",
+    lastUpdate = DemoModelDefaults.defaultSyncLabel,
     status = MemberStatus.SAFE,
-    note = "Asosiy qurilma faol holatda.",
-    safeZone = "Uy va ish yo'nalishi",
-    phone = "+998 90 321 45 67",
-    schedule = "20:00 oilaviy check-in",
+    note = DemoModelDefaults.defaultDeviceNote,
+    safeZone = DemoModelDefaults.defaultSafeZone,
+    phone = "",
+    schedule = DemoModelDefaults.defaultSchedule,
     avatarSeed = 0,
     avatarUri = "",
     distanceKm = 3.6,
-    isCurrentUser = true
+    isCurrentUser = true,
+    isOnline = true,
+    presenceLabel = DemoModelDefaults.defaultPresenceOnline,
+    lastSeenAt = null
 )

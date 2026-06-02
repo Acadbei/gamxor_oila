@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -33,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -54,18 +56,24 @@ import com.example.myapplication.ui.component.SymbolChip
 import com.example.myapplication.ui.theme.GlowRose
 import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
+import kotlinx.coroutines.launch
 
 @Composable
 fun NotificationsScreen(
     modifier: Modifier = Modifier,
     uiState: DemoUiState,
-    onAcceptInvite: (Int) -> DemoActionResult,
+    onAcceptInvite: suspend (Int) -> DemoActionResult,
+    onDismissInvite: suspend (Int) -> DemoActionResult,
     onMarkNotificationRead: (Int) -> Unit,
     onMarkAllNotificationsRead: () -> Unit,
+    onDismissNotification: suspend (Int) -> DemoActionResult,
     onAction: (String) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     val unreadCount = uiState.notifications.count { !it.isRead }
-    val pendingAcceptanceCount = uiState.invitations.count { it.status == InvitationStatus.PENDING_ACCEPTANCE }
+    val pendingAcceptanceCount = uiState.incomingInvitations.count {
+        it.status == InvitationStatus.PENDING_ACCEPTANCE
+    }
     val safetyCount = uiState.notifications.count {
         it.category == NotificationCategory.SAFETY || it.category == NotificationCategory.CRIME
     }
@@ -178,21 +186,54 @@ fun NotificationsScreen(
             }
         }
 
-        if (uiState.invitations.isNotEmpty()) {
+        if (uiState.incomingInvitations.isNotEmpty()) {
             item {
                 SectionTitle(
                     icon = Icons.Default.PersonAdd,
-                    title = "Invite oqimi",
-                    subtitle = "Accept kutilayotganlar"
+                    title = "Menga kelgan so'rovlar",
+                    subtitle = "Narigi tomon yuborgan takliflar"
                 )
             }
 
-            items(uiState.invitations, key = { it.id }) { invitation ->
+            items(uiState.incomingInvitations, key = { "incoming-${it.id}" }) { invitation ->
                 InvitationReviewCard(
                     invitation = invitation,
+                    isIncoming = true,
                     onAccept = {
-                        val result = onAcceptInvite(invitation.id)
-                        onAction(result.message)
+                        scope.launch {
+                            val result = onAcceptInvite(invitation.id)
+                            onAction(result.message)
+                        }
+                    },
+                    onDismiss = {
+                        scope.launch {
+                            val result = onDismissInvite(invitation.id)
+                            onAction(result.message)
+                        }
+                    }
+                )
+            }
+        }
+
+        if (uiState.invitations.isNotEmpty()) {
+            item {
+                SectionTitle(
+                    icon = Icons.AutoMirrored.Filled.Send,
+                    title = "Yuborilgan so'rovlar",
+                    subtitle = "Status internet orqali kuzatiladi"
+                )
+            }
+
+            items(uiState.invitations, key = { "outgoing-${it.id}" }) { invitation ->
+                InvitationReviewCard(
+                    invitation = invitation,
+                    isIncoming = false,
+                    onAccept = null,
+                    onDismiss = {
+                        scope.launch {
+                            val result = onDismissInvite(invitation.id)
+                            onAction(result.message)
+                        }
                     }
                 )
             }
@@ -229,13 +270,12 @@ fun NotificationsScreen(
             items(uiState.notifications, key = { it.id }) { notification ->
                 NotificationCard(
                     notification = notification,
-                    invitation = notification.inviteId?.let { inviteId ->
-                        uiState.invitations.firstOrNull { it.id == inviteId }
-                    },
                     onRead = { onMarkNotificationRead(notification.id) },
-                    onAccept = {
-                        val result = onAcceptInvite(it)
-                        onAction(result.message)
+                    onDelete = {
+                        scope.launch {
+                            val result = onDismissNotification(notification.id)
+                            onAction(result.message)
+                        }
                     }
                 )
             }
@@ -246,7 +286,9 @@ fun NotificationsScreen(
 @Composable
 private fun InvitationReviewCard(
     invitation: FamilyInvitation,
-    onAccept: () -> Unit
+    isIncoming: Boolean,
+    onAccept: (() -> Unit)?,
+    onDismiss: (() -> Unit)?
 ) {
     Card(
         shape = MaterialTheme.shapes.extraLarge,
@@ -265,15 +307,29 @@ private fun InvitationReviewCard(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = invitation.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${invitation.relation} • ${invitation.phone}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (isIncoming) {
+                        // Kiruvchi taklif: kim yuborganini ko'rsatamiz
+                        Text(
+                            text = invitation.invitedByName.ifBlank { "Noma'lum" },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${invitation.familyName.ifBlank { "Oila" }} a'zosi | ${invitation.phone}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        // Chiquvchi taklif: kim taklif qilinganini ko'rsatamiz
+                        Text(
+                            text = invitation.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${invitation.relation} | ${invitation.phone}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 InvitationStatusPill(status = invitation.status)
             }
@@ -291,14 +347,38 @@ private fun InvitationReviewCard(
                 )
             }
 
-            if (invitation.status == InvitationStatus.PENDING_ACCEPTANCE) {
-                Button(
-                    onClick = onAccept,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null)
-                    Box(modifier = Modifier.width(8.dp))
-                    Text("Accept keldi")
+            if (isIncoming) {
+                Text(
+                    text = "${invitation.invitedByName.ifBlank { "Kimdir" }} sizni " +
+                            "${invitation.familyName.ifBlank { "oila" }}ga qo'shishni so'ramoqda.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (isIncoming && invitation.status == InvitationStatus.PENDING_ACCEPTANCE && onAccept != null) {
+                    Button(
+                        onClick = onAccept,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+                        Box(modifier = Modifier.width(8.dp))
+                        Text("Oilaga qo'shilish")
+                    }
+                }
+                if (onDismiss != null) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                        Box(modifier = Modifier.width(8.dp))
+                        Text("Rad etish")
+                    }
                 }
             }
         }
@@ -308,9 +388,8 @@ private fun InvitationReviewCard(
 @Composable
 private fun NotificationCard(
     notification: AppNotification,
-    invitation: FamilyInvitation?,
     onRead: () -> Unit,
-    onAccept: (Int) -> Unit
+    onDelete: () -> Unit
 ) {
     val accent = when (notification.category) {
         NotificationCategory.INVITE -> GlowSand
@@ -402,18 +481,13 @@ private fun NotificationCard(
                         Text("O'qildi")
                     }
                 }
-
-                if (
-                    notification.inviteId != null &&
-                    invitation?.status == InvitationStatus.PENDING_ACCEPTANCE &&
-                    notification.actionLabel != null
+                OutlinedButton(
+                    onClick = onDelete,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    OutlinedButton(
-                        onClick = { onAccept(notification.inviteId) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(notification.actionLabel)
-                    }
+                    Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                    Box(modifier = Modifier.width(8.dp))
+                    Text("O'chirish")
                 }
             }
         }

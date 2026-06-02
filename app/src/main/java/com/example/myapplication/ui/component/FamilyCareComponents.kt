@@ -259,6 +259,7 @@ fun InvitationStatusPill(status: InvitationStatus) {
         InvitationStatus.PENDING_ACCEPTANCE -> Triple("Kutilmoqda", GlowSand, WarningInk)
         InvitationStatus.WAITING_INSTALL -> Triple("SMS yuborildi", GlowSky, InfoInk)
         InvitationStatus.ACCEPTED -> Triple("Ulandi", GlowMint, SuccessInk)
+        InvitationStatus.DECLINED -> Triple("Rad etildi", GlowRose, DangerInk)
     }
 
     Surface(shape = RoundedCornerShape(999.dp), color = background) {

@@ -1,8 +1,12 @@
 package com.example.myapplication.ui.screen
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,9 +24,13 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -53,10 +61,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.data.model.BackendStatus
 import com.example.myapplication.data.model.CaregiverProfile
 import com.example.myapplication.data.model.DemoActionResult
 import com.example.myapplication.data.model.DemoUiState
 import com.example.myapplication.data.model.SosContactState
+import com.example.myapplication.location.fetchCurrentDeviceLocation
+import com.example.myapplication.location.hasLocationPermissions
+import com.example.myapplication.tracking.batteryOptimizationIntent
 import com.example.myapplication.ui.component.SymbolChip
 import com.example.myapplication.ui.theme.GlowMint
 import com.example.myapplication.ui.theme.GlowRose
@@ -64,6 +76,7 @@ import com.example.myapplication.ui.theme.GlowSand
 import com.example.myapplication.ui.theme.GlowSky
 import com.example.myapplication.ui.theme.screen.FamilyMapScreen
 import com.example.myapplication.viewmodel.LocationViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class DemoTab(
@@ -72,6 +85,7 @@ private enum class DemoTab(
 ) {
     Home("Uy", Icons.Default.Home),
     Map("Xarita", Icons.Default.LocationOn),
+    Notifications("Inbox", Icons.Default.NotificationsActive),
     Profile("Profil", Icons.Default.Person)
 }
 
@@ -81,6 +95,103 @@ fun FamilyCareApp(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showRegistrationFlow by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grantedPermissions ->
+        if (grantedPermissions.values.any { it }) {
+            fetchCurrentDeviceLocation(context) { snapshot ->
+                snapshot?.let {
+                    viewModel.syncMyLocation(
+                        latitude = it.latitude,
+                        longitude = it.longitude,
+                        address = it.address,
+                        placeLabel = it.placeLabel
+                    )
+                }
+            }
+        }
+    }
+    val trackingPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grantedPermissions ->
+        if (grantedPermissions.values.any { it }) {
+            batteryOptimizationIntent(context)?.let { intent ->
+                runCatching { context.startActivity(intent) }
+            }
+            viewModel.startLiveTracking()
+        }
+    }
+
+    fun syncCurrentLocation() {
+        if (hasLocationPermissions(context)) {
+            fetchCurrentDeviceLocation(context) { snapshot ->
+                snapshot?.let {
+                    viewModel.syncMyLocation(
+                        latitude = it.latitude,
+                        longitude = it.longitude,
+                        address = it.address,
+                        placeLabel = it.placeLabel
+                    )
+                }
+            }
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    fun startLiveTracking() {
+        if (hasLocationPermissions(context)) {
+            batteryOptimizationIntent(context)?.let { intent ->
+                runCatching { context.startActivity(intent) }
+            }
+            viewModel.startLiveTracking()
+        } else {
+            val permissions = buildList {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    add(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }.toTypedArray()
+            trackingPermissionLauncher.launch(permissions)
+        }
+    }
+
+    LaunchedEffect(uiState.isLoggedIn) {
+        if (uiState.isLoggedIn) {
+            showRegistrationFlow = false
+        }
+        if (!uiState.isLoggedIn) {
+            showRegistrationFlow = false
+        }
+    }
+
+    LaunchedEffect(uiState.backendConnection.baseUrl) {
+        while (true) {
+            delay(30_000)
+            // Foydalanuvchi tizimda bo'lsa - to'liq dashboard yangilaymiz
+            // (oila a'zolari qo'shilishi/joylashuv o'zgarishini ko'rsin)
+            // Aks holda - faqat server holatini tekshiramiz
+            if (viewModel.uiState.value.isLoggedIn) {
+                viewModel.refreshDemoSilent()
+            } else {
+                viewModel.checkBackendHealth(silent = true)
+            }
+        }
+    }
+
+    LaunchedEffect(uiState.isLoggedIn, uiState.isLiveTracking) {
+        if (uiState.isLoggedIn && !uiState.isLiveTracking) {
+            startLiveTracking()
+        }
+    }
 
     if (uiState.isLoading) {
         DemoBootScreen()
@@ -97,12 +208,10 @@ fun FamilyCareApp(
                     onRequestCode = viewModel::requestCode,
                     onVerifyCode = viewModel::verifySmsCode,
                     onCompleteRegistration = { phone, fullName ->
-                        val result = viewModel.completeRegistration(fullName = fullName, phone = phone)
-                        if (result.success) {
-                            showRegistrationFlow = false
-                        }
-                        result
+                        viewModel.completeRegistration(fullName = fullName, phone = phone)
                     },
+                    onUpdateServerUrl = viewModel::updateServerBaseUrl,
+                    onCheckBackend = { viewModel.checkBackendHealth() },
                     onBack = {
                         viewModel.resetAuthState()
                         showRegistrationFlow = false
@@ -115,13 +224,23 @@ fun FamilyCareApp(
                     onSignOut = viewModel::signOut,
                     onSaveProfile = viewModel::saveProfile,
                     onSendInvitation = viewModel::sendInvitation,
+                    onAcceptInvitation = viewModel::acceptInvitation,
+                    onDismissInvitation = viewModel::dismissInvitation,
+                    onMarkNotificationRead = viewModel::markNotificationRead,
+                    onMarkAllNotificationsRead = viewModel::markAllNotificationsRead,
                     onDismissNotification = viewModel::dismissNotification,
                     onStartRegistration = {
                         viewModel.resetAuthState()
                         showRegistrationFlow = true
                     },
                     onTriggerSos = viewModel::triggerSos,
-                    onDismissSos = viewModel::clearSosState
+                    onDismissSos = viewModel::clearSosState,
+                    onStopSos = viewModel::stopSos,
+                    onToggleHistory = viewModel::toggleSelectedMemberHistory,
+                    onToggleSosRoutes = viewModel::toggleSosRoutes,
+                    onUpdateServerUrl = viewModel::updateServerBaseUrl,
+                    onCheckBackend = { viewModel.checkBackendHealth() },
+                    onSyncCurrentLocation = ::syncCurrentLocation
                 )
             }
         }
@@ -188,14 +307,24 @@ private fun FamilyCareShell(
     uiState: DemoUiState,
     onSelectMember: (Int) -> Unit,
     onSignOut: () -> Unit,
-    onSaveProfile: (CaregiverProfile) -> DemoActionResult,
-    onSendInvitation: (String, String, String) -> DemoActionResult,
-    onDismissNotification: (Int) -> DemoActionResult,
+    onSaveProfile: suspend (CaregiverProfile) -> DemoActionResult,
+    onSendInvitation: suspend (String, String, String) -> DemoActionResult,
+    onAcceptInvitation: suspend (Int) -> DemoActionResult,
+    onDismissInvitation: suspend (Int) -> DemoActionResult,
+    onMarkNotificationRead: (Int) -> Unit,
+    onMarkAllNotificationsRead: () -> Unit,
+    onDismissNotification: suspend (Int) -> DemoActionResult,
     onStartRegistration: () -> Unit,
     onTriggerSos: () -> Unit,
-    onDismissSos: () -> Unit
+    onDismissSos: () -> Unit,
+    onStopSos: () -> Unit,
+    onToggleHistory: () -> Unit,
+    onToggleSosRoutes: () -> Unit,
+    onUpdateServerUrl: suspend (String) -> DemoActionResult,
+    onCheckBackend: () -> Unit,
+    onSyncCurrentLocation: () -> Unit
 ) {
-    val navigationTabs = listOf(DemoTab.Home, DemoTab.Map, DemoTab.Profile)
+    val navigationTabs = listOf(DemoTab.Home, DemoTab.Map, DemoTab.Notifications, DemoTab.Profile)
     var selectedTab by rememberSaveable { mutableStateOf(DemoTab.Map) }
     var showSosConfirm by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -204,6 +333,13 @@ private fun FamilyCareShell(
 
     val showMessage: (String) -> Unit = { message ->
         scope.launch { snackbarHostState.showSnackbar(message) }
+    }
+
+    fun requireAuthenticatedAction(): Boolean {
+        if (uiState.isLoggedIn) return true
+        showMessage("Ma'lumot kiritish uchun avval ro'yxatdan o'ting yoki ilovaga kiring.")
+        onStartRegistration()
+        return false
     }
 
     val handleResult: (DemoActionResult) -> Unit = { result ->
@@ -240,16 +376,21 @@ private fun FamilyCareShell(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
-                if (selectedTab == DemoTab.Map && !uiState.isRegistered) {
+                if (selectedTab == DemoTab.Map) {
                     MapTopBar(
                         uiState = uiState,
-                        onRegister = onStartRegistration
+                        onRegister = onStartRegistration,
+                        onRefreshServer = onCheckBackend,
+                        onSyncLocation = {
+                            if (requireAuthenticatedAction()) onSyncCurrentLocation()
+                        }
                     )
-                } else if (selectedTab != DemoTab.Map) {
+                } else {
                     ShellTopBar(
                         selectedTab = selectedTab,
                         uiState = uiState,
-                        onRegister = onStartRegistration
+                        onRegister = onStartRegistration,
+                        onRefreshServer = onCheckBackend
                     )
                 }
             },
@@ -258,7 +399,9 @@ private fun FamilyCareShell(
                     modifier = Modifier
                         .navigationBarsPadding()
                         .padding(bottom = 10.dp)
-                        .clickable(onClick = { showSosConfirm = true }),
+                        .clickable(onClick = {
+                            if (requireAuthenticatedAction()) showSosConfirm = true
+                        }),
                     shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.error,
                     tonalElevation = 3.dp,
@@ -328,14 +471,33 @@ private fun FamilyCareShell(
                         onSelectMember = onSelectMember,
                         onCall = launchDialer,
                         onDismissCrimeAlert = { notificationId ->
-                            handleResult(onDismissNotification(notificationId))
+                            scope.launch {
+                                handleResult(onDismissNotification(notificationId))
+                            }
                         }
                     )
 
                     DemoTab.Map -> FamilyMapScreen(
                         modifier = Modifier.padding(padding),
                         uiState = uiState,
-                        onSelectMember = onSelectMember
+                        onSelectMember = onSelectMember,
+                        onToggleHistory = {
+                            if (requireAuthenticatedAction()) onToggleHistory()
+                        },
+                        onToggleSosRoutes = {
+                            if (requireAuthenticatedAction()) onToggleSosRoutes()
+                        }
+                    )
+
+                    DemoTab.Notifications -> NotificationsScreen(
+                        modifier = Modifier.padding(padding),
+                        uiState = uiState,
+                        onAcceptInvite = onAcceptInvitation,
+                        onDismissInvite = onDismissInvitation,
+                        onMarkNotificationRead = onMarkNotificationRead,
+                        onMarkAllNotificationsRead = onMarkAllNotificationsRead,
+                        onDismissNotification = onDismissNotification,
+                        onAction = showMessage
                     )
 
                     DemoTab.Profile -> ProfileScreen(
@@ -348,6 +510,9 @@ private fun FamilyCareShell(
                         onSaveProfile = onSaveProfile,
                         onSendInvitation = onSendInvitation,
                         onRegister = onStartRegistration,
+                        onUpdateServerUrl = onUpdateServerUrl,
+                        onCheckBackend = onCheckBackend,
+                        onSyncCurrentLocation = onSyncCurrentLocation,
                         onAction = showMessage
                     )
                 }
@@ -364,7 +529,7 @@ private fun FamilyCareShell(
                 TextButton(
                     onClick = {
                         showSosConfirm = false
-                        onTriggerSos()
+                        if (requireAuthenticatedAction()) onTriggerSos()
                     }
                 ) {
                     Text("Yuborish")
@@ -415,8 +580,16 @@ private fun FamilyCareShell(
                 }
             },
             confirmButton = {
+                TextButton(
+                    enabled = !uiState.sosState.isSending && uiState.sosState.alertId != null,
+                    onClick = { onStopSos() }
+                ) {
+                    Text(if (uiState.sosState.isSending) "Jarayon..." else "To'xtatish")
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = { if (!uiState.sosState.isSending) onDismissSos() }) {
-                    Text(if (uiState.sosState.isSending) "Jarayon..." else "Yopish")
+                    Text("Yopish")
                 }
             }
         )
@@ -426,20 +599,68 @@ private fun FamilyCareShell(
 @Composable
 private fun MapTopBar(
     uiState: DemoUiState,
-    onRegister: () -> Unit
+    onRegister: () -> Unit,
+    onRefreshServer: () -> Unit,
+    onSyncLocation: () -> Unit
 ) {
     Surface(color = Color.Transparent) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 18.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (!uiState.isRegistered) {
-                Button(onClick = onRegister, shape = RoundedCornerShape(18.dp)) {
-                    Text("Ro'yxatdan o'tish")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BackendStatusChip(
+                    status = uiState.backendConnection.status,
+                    label = uiState.backendConnection.label,
+                    onClick = onRefreshServer
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onSyncLocation) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null)
+                        Text("Sync")
+                    }
+
+                    if (!uiState.isRegistered) {
+                        Button(onClick = onRegister, shape = RoundedCornerShape(18.dp)) {
+                            Text("Ro'yxatdan o'tish")
+                        }
+                    }
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White.copy(alpha = 0.92f),
+                tonalElevation = 2.dp,
+                shadowElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Xarita sinxronizatsiyasi",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = uiState.backendConnection.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Server: ${uiState.backendConnection.baseUrl}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -450,11 +671,13 @@ private fun MapTopBar(
 private fun ShellTopBar(
     selectedTab: DemoTab,
     uiState: DemoUiState,
-    onRegister: () -> Unit
+    onRegister: () -> Unit,
+    onRefreshServer: () -> Unit
 ) {
     val (title, subtitle, accent) = when (selectedTab) {
         DemoTab.Home -> Triple("Uy", "Masofa, oila va SOS holati", GlowSky)
         DemoTab.Map -> Triple("Xarita", "Jonli joylashuv va oilaviy markerlar", GlowSand)
+        DemoTab.Notifications -> Triple("Inbox", "Invite, signal va system oqimi", GlowRose)
         DemoTab.Profile -> Triple("Profil", "Shaxsiy ma'lumotlar va oila qo'shish", GlowSky)
     }
 
@@ -527,8 +750,64 @@ private fun ShellTopBar(
                             accent = GlowSky
                         )
                     }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        BackendStatusChip(
+                            modifier = Modifier.weight(1f),
+                            status = uiState.backendConnection.status,
+                            label = uiState.backendConnection.label,
+                            onClick = onRefreshServer
+                        )
+                        SymbolChip(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.Sync,
+                            label = uiState.backendConnection.checkedAtLabel,
+                            accent = GlowSand
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BackendStatusChip(
+    modifier: Modifier = Modifier,
+    status: BackendStatus,
+    label: String,
+    onClick: () -> Unit
+) {
+    val icon = when (status) {
+        BackendStatus.ONLINE -> Icons.Default.CloudDone
+        BackendStatus.CHECKING -> Icons.Default.Sync
+        BackendStatus.OFFLINE -> Icons.Default.CloudOff
+    }
+    val accent = when (status) {
+        BackendStatus.ONLINE -> GlowMint
+        BackendStatus.CHECKING -> GlowSand
+        BackendStatus.OFFLINE -> GlowRose
+    }
+
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = accent.copy(alpha = 0.22f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
